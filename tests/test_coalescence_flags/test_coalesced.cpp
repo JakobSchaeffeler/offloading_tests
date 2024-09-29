@@ -8,9 +8,7 @@
 
 void triad(double* a, double* b, double* c, double scalar, int array_size)
 {
-    const int num_teams = NUM_TEAMS;
-    const int num_threads = NUM_THREADS;
-#pragma omp target teams distribute parallel for simd num_threads(NUM_THREADS) num_teams(NUM_TEAMS) thread_limit(NUM_THREADS)
+#pragma omp target teams distribute parallel for simd num_threads(114688) 
   for (int i = 0; i < array_size; i++)
   {
     a[i] = b[i] + scalar * c[i];
@@ -27,13 +25,11 @@ int main(){
   double* b = (double*)aligned_alloc(ALIGNMENT, sizeof(double)*SIZE);
   double* c = (double*)aligned_alloc(ALIGNMENT, sizeof(double)*SIZE);
 
-  const int num_teams = NUM_TEAMS;
-  const int num_threads = NUM_THREADS;
   // alloc on device
 #pragma omp target enter data map(alloc: a[0:SIZE], b[0:SIZE], c[0:SIZE])
 
   // init on device
-#pragma omp target teams distribute parallel for simd num_threads(NUM_THREADS) num_teams(NUM_TEAMS) thread_limit(NUM_THREADS)
+#pragma omp target teams distribute parallel for simd 
   for (int i = 0; i < SIZE; i++)
   {
     b[i] = i;
@@ -47,10 +43,10 @@ int main(){
   double sum_wanted = 0;
   for (int i = 0; i < SIZE; i++){
     sum += a[i];
-    sum_wanted += i + (2*i)*scal;
+    sum_wanted += i + 2*i*scal;
   }
   if (sum != sum_wanted){
-    std::cout << "Error in thread exlicit test" << std::endl;
+    std::cout << "Error in coalesced test" << std::endl;
   }
 
 #pragma omp target exit data map(release: a[0:SIZE], b[0:SIZE], c[0:SIZE])

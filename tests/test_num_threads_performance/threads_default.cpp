@@ -43,7 +43,7 @@ int main(){
   double sum_wanted = 0;
   for (int i = 0; i < SIZE; i++){
     sum += a[i];
-    sum_wanted += i + (2*i)*scal;
+    sum_wanted += i + 2*i*scal;
   }
   if (sum != sum_wanted){
     std::cout << "Error in thread default test" << std::endl;

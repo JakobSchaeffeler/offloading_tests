@@ -1,7 +1,7 @@
 # Default settings
-CC ?= clang++  # Default to clang++, but can be overridden on the command line (e.g., make CC=gcc)
-GPU_ARCH ?= sm70  # Default GPU architecture, can be overridden (e.g., make GPU_ARCH=gfx906)
-
+CC=clang++# Default to clang++, but can be overridden on the command line (e.g., make CC=gcc)
+GPU_ARCH =gfx908# Default GPU architecture, can be overridden (e.g., make GPU_ARCH=gfx906)
+.PHONY: test_coalesced
 CXXFLAGS_COMMON =   # Common flags for all compilers
 CXXFLAGS_EXTRA = 
 
@@ -21,10 +21,9 @@ else
     $(error Unsupported compiler: $(CC))
 endif
 
-test_reduction_gpu: test_reduction_gpu.cpp
-		$(CC) $(CXXFLAGS_COMPILER) $(CXXFLAGS_COMMON) $(CXXFLAGS_EXTRA) -O0 $< -o $@
+test_coalesced: test_coalesced.cpp
+		$(CC) $(CXXFLAGS_COMPILER) $(CXXFLAGS_COMMON) $(CXXFLAGS_EXTRA) $< -o $@
 
 
-test_reduction_cpu: test_reduction_cpu.cpp
-		$(CC) $(CXXFLAGS_COMPILER) $(CXXFLAGS_COMMON) $(CXXFLAGS_EXTRA) -O0 $< -o $@
-
+clean:
+	rm -f test_threads_default test_threads_explicit test_threads_explicit_with_limit test_threads_explicit_as_const

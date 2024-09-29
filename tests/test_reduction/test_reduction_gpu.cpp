@@ -30,20 +30,23 @@ int main(){
 
   // alloc on device
 #pragma omp target enter data map(alloc: a[0:SIZE], b[0:SIZE])
-
   // init on device
 #pragma omp target teams distribute parallel for simd 
   for (int i = 0; i < SIZE; i++)
   {
-    a[i] = i;
-    b[i] = 2*i;
+    a[i] = (double) i;
+    b[i] = 2*(double)i;
   }
+
   double sum = dot(a, b);
 
   double sum_wanted = 0;
   for (int i = 0; i < SIZE; i++){
-    sum += i * (2*i);
+    sum_wanted += (double)i * 2* (double)i;
   }
+  
+  printf("%f\n", sum);
+  printf("%f\n", sum_wanted);
   if (sum != sum_wanted){
     std::cout << "Error in reduction gpu test" << std::endl;
   }

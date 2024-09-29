@@ -8,48 +8,52 @@
 
 double dot(double* a, double* b, double* sums)
 {
-#pragma omp target teams num_teams(NUM_TEAMS) thread_limit(NUM_THREADS)
+  const int num_teams = (int) NUM_TEAMS;
+  const int num_threads = (int) NUM_THREADS -1 ;
+#pragma omp target teams num_teams(num_teams) thread_limit(num_threads)
    {
-   sums[omp_get_team_num()] = 0;
-#pragma omp distribute parallel for simd reduction(+:sums[omp_get_team_num()]) num_threads(NUM_THREADS)  
-  for (int i = 0; i < SIZE; i++){
-    sums[omp_get_team_num()] += a[i] * b[i];
+  sums[omp_get_team_num()] = 0;
+#pragma omp distribute parallel for simd reduction(+:sums[omp_get_team_num()]) num_threads(num_threads)  
+    for (int i = 0; i < SIZE; i++){
+      sums[omp_get_team_num()] += a[i] + b[i];
+    }
   }
-  }
-#pragma omp target update from(sums[0:NUM_TEAMS])
+#pragma omp target update from(sums[0:num_teams])
   double sum = 0.0;
   for (int i = 0; i < NUM_TEAMS; i++){
     sum += sums[i];
   }
   return sum;
-   
-   /*
-#pragma omp target teams distribute parallel for simd map(tofrom: sums[0:255]) num_teams(256) num_threads(512) //schedule(static)
-*/
 }
 
 int main(){
   // alloc on host
+  const int num_teams = (int) NUM_TEAMS;
+  const int num_threads = (int) NUM_THREADS;
+
   double* a = (double*)aligned_alloc(ALIGNMENT, sizeof(double)*SIZE);
   double* b = (double*)aligned_alloc(ALIGNMENT, sizeof(double)*SIZE);
-  double* sums = (double*)aligned_alloc(ALIGNMENT, sizeof(double)*NUM_TEAMS);
+  double* sums = (double*)aligned_alloc(ALIGNMENT, sizeof(double)*num_teams);
 
   // alloc on device
-#pragma omp target enter data map(alloc: a[0:SIZE], b[0:SIZE], sums[0:NUM_TEAMS])
+#pragma omp target enter data map(alloc: a[0:SIZE], b[0:SIZE], sums[0:num_teams])
 
   // init on device
-#pragma omp target teams distribute parallel for simd 
+#pragma omp target teams distribute parallel for simd num_threads(NUM_THREADS) thread_limit(NUM_THREADS) num_teams(num_teams) 
   for (int i = 0; i < SIZE; i++)
   {
     a[i] = i;
-    b[i] = 2*i;
+    b[i] = i;
   }
+
   double sum = dot(a, b, sums);
 
   double sum_wanted = 0;
+  
   for (int i = 0; i < SIZE; i++){
-    sum += i * (2*i);
+    sum_wanted += (double)i + (double)(i);
   }
+  
   if (sum != sum_wanted){
     std::cout << "Error in reduction cpu test" << std::endl;
   }

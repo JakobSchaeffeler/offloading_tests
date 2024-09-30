@@ -6,6 +6,16 @@
 #define ALIGNMENT (2*1024*1024)
 #define TBSIZE 1024
 
+void check_error(void)
+{
+  hipError_t err = hipGetLastError();
+  if (err != hipSuccess)
+  {
+    std::cerr << "Error: " << hipGetErrorString(err) << std::endl;
+    exit(err);
+  }
+}
+
 std::string getDeviceName(const int device)
 {
   hipDeviceProp_t props;
@@ -23,16 +33,6 @@ std::string getDeviceDriver(const int device)
   hipDriverGetVersion(&driver);
   check_error();
   return std::to_string(driver);
-}
-
-void check_error(void)
-{
-  hipError_t err = hipGetLastError();
-  if (err != hipSuccess)
-  {
-    std::cerr << "Error: " << hipGetErrorString(err) << std::endl;
-    exit(err);
-  }
 }
 
 __global__ void triad_kernel(double* a, const double* b, const double* c)

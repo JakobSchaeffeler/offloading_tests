@@ -26,7 +26,7 @@ __global__ void triad_kernel(double* a, const double* b, const double* c)
 
 void triad(double* a, const double* b, const double* c)
 {
-  hipLaunchKernelGGL(HIP_KERNEL_NAME(triad_kernel), dim3(SIZE/TBSIZE), dim3(TBSIZE), 0, 0, d_a, d_b, d_c);
+  hipLaunchKernelGGL(HIP_KERNEL_NAME(triad_kernel), dim3(SIZE/TBSIZE), dim3(TBSIZE), 0, 0, a, b, c);
   check_error();
   hipDeviceSynchronize();
   check_error();
@@ -122,3 +122,21 @@ int main(){
 
 }
 
+std::string getDeviceName(const int device)
+{
+  hipDeviceProp_t props;
+  hipGetDeviceProperties(&props, device);
+  check_error();
+  return std::string(props.name);
+}
+
+
+std::string getDeviceDriver(const int device)
+{
+  hipSetDevice(device);
+  check_error();
+  int driver;
+  hipDriverGetVersion(&driver);
+  check_error();
+  return std::to_string(driver);
+}

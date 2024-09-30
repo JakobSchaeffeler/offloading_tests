@@ -6,6 +6,24 @@
 #define ALIGNMENT (2*1024*1024)
 #define TBSIZE 1024
 
+std::string getDeviceName(const int device)
+{
+  hipDeviceProp_t props;
+  hipGetDeviceProperties(&props, device);
+  check_error();
+  return std::string(props.name);
+}
+
+
+std::string getDeviceDriver(const int device)
+{
+  hipSetDevice(device);
+  check_error();
+  int driver;
+  hipDriverGetVersion(&driver);
+  check_error();
+  return std::to_string(driver);
+}
 
 void check_error(void)
 {
@@ -96,9 +114,9 @@ int main(){
 
   triad(d_a, d_b, d_c);
 
-  double* a = malloc(SIZE*sizeof(double));
+  double* a = (double*)malloc(SIZE*sizeof(double));
 
-  double* h_a = malloc(SIZE*sizeof(double));
+  double* h_a = (double*)malloc(SIZE*sizeof(double));
 
   hipMemcpy(a, d_a, SIZE*sizeof(double), hipMemcpyDeviceToHost);
 
@@ -122,21 +140,4 @@ int main(){
 
 }
 
-std::string getDeviceName(const int device)
-{
-  hipDeviceProp_t props;
-  hipGetDeviceProperties(&props, device);
-  check_error();
-  return std::string(props.name);
-}
 
-
-std::string getDeviceDriver(const int device)
-{
-  hipSetDevice(device);
-  check_error();
-  int driver;
-  hipDriverGetVersion(&driver);
-  check_error();
-  return std::to_string(driver);
-}

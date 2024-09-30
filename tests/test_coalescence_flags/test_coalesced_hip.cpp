@@ -7,10 +7,15 @@
 #define TBSIZE 1024
 
 
-
-
-
-
+void check_error(void)
+{
+  hipError_t err = hipGetLastError();
+  if (err != hipSuccess)
+  {
+    std::cerr << "Error: " << hipGetErrorString(err) << std::endl;
+    exit(err);
+  }
+}
 
 __global__ void triad_kernel(double* a, const double* b, const double* c)
 {
@@ -21,7 +26,7 @@ __global__ void triad_kernel(double* a, const double* b, const double* c)
 
 void triad(double* a, const double* b, const double* c)
 {
-  hipLaunchKernelGGL(HIP_KERNEL_NAME(triad_kernel<double>), dim3(SIZE/TBSIZE), dim3(TBSIZE), 0, 0, d_a, d_b, d_c);
+  hipLaunchKernelGGL(HIP_KERNEL_NAME(triad_kernel), dim3(SIZE/TBSIZE), dim3(TBSIZE), 0, 0, d_a, d_b, d_c);
   check_error();
   hipDeviceSynchronize();
   check_error();
@@ -37,7 +42,7 @@ __global__ void init_kernel(double* b, double* c)
 
 void init_arrays(double* b, double* c)
 {
-  hipLaunchKernelGGL(HIP_KERNEL_NAME(init_kernel<T>), dim3(array_size/TBSIZE), dim3(TBSIZE), 0, 0, b, c);
+  hipLaunchKernelGGL(HIP_KERNEL_NAME(init_kernel), dim3(SIZE/TBSIZE), dim3(TBSIZE), 0, 0, b, c);
   check_error();
   hipDeviceSynchronize();
   check_error();
@@ -55,6 +60,7 @@ int main(){
 
   // Set device
   int count;
+  int device_index = 0;
   hipGetDeviceCount(&count);
   check_error();
   if (device_index >= count)
@@ -63,15 +69,15 @@ int main(){
   check_error();
 
   // Print out device information
-  std::cout << "Using HIP device " << getDeviceName(device_index) << std::endl;
-  std::cout << "Driver: " << getDeviceDriver(device_index) << std::endl;
+  std::cout << "Using HIP device " << getDeviceName(0) << std::endl;
+  std::cout << "Driver: " << getDeviceDriver(0) << std::endl;
 
-  array_size = SIZE;
+  int array_size = SIZE;
 
   // Check buffers fit on the device
   hipDeviceProp_t props;
   hipGetDeviceProperties(&props, 0);
-  if (props.totalGlobalMem < 3*ARRAY_SIZE*sizeof(double))
+  if (props.totalGlobalMem < 3*SIZE*sizeof(double))
     throw std::runtime_error("Device does not have enough memory for all 3 buffers");
 
   // Create device buffers
@@ -79,11 +85,11 @@ int main(){
   double* d_b;
   double* d_c;
 
-  hipMalloc(&d_a, ARRAY_SIZE*sizeof(T));
+  hipMalloc(&d_a, SIZE*sizeof(double));
   check_error();
-  hipMalloc(&d_b, ARRAY_SIZE*sizeof(T));
+  hipMalloc(&d_b, SIZE*sizeof(double));
   check_error();
-  hipMalloc(&d_c, ARRAY_SIZE*sizeof(T));
+  hipMalloc(&d_c, SIZE*sizeof(double));
   check_error();
 
   init_arrays(d_b, d_c);

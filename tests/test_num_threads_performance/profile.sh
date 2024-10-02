@@ -10,6 +10,31 @@ COMPILER=$1
 ARCH=$2
 
 
+
+if [[ "$ARCH" == *"sm"* ]]; then 
+    # build default benchmark
+    make test_threads_default CC=$COMPILER GPU_ARCH=$ARCH
+
+    # get team/thread config from default benchmark
+    ncu ./test_threads_default > ncu_out.txt
+
+    sed -n '/triad/,$p' ncu_out.txt > ncu_out_kernel.txt
+
+    BLOCK_LINE=$(grep -m 1 "Block Size" "ncu_out_kernel.txt")
+    BLOCK_SIZE=$(echo $BLOCK_LINE | awk '{print $NF}')
+    
+    GRID_LINE=$(grep -m 1 "Grid Size" "ncu_out_kernel.txt")
+    GRID_SIZE=$(echo $GRID_LINE | awk '{print $NF}')
+
+    BLOCK_SIZE="${BLOCK_SIZE//,/}"
+    GRID_SIZE="${GRID_SIZE//,/}"
+
+    # build all other benchmarks with team/thread config
+    make test_threads_all CC=$COMPILER GPU_ARCH=$ARCH CXXFLAGS_EXTRA="-DNUM_THREADS=$BLOCK_SIZE -DNUM_TEAMS=$GRID_SIZE"
+
+fi
+
+
 if [[ "$ARCH" == *"gfx"* ]]; then 
 
     # first compiler reduction gpu and get thread/team config

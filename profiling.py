@@ -10,9 +10,9 @@ def get_line_with_substring(filename, substring):
         for line in file:
             # Check if the line contains the desired substring
             if substring in line:
-                return substring
+                return line
 
-    print(f"Error in parsing profiling output: No line containing the substring '{substring}' was found.")
+    print("Error in parsing profiling output: No line containing the substring " + substring + " was found.")
     return None
 
 
@@ -29,7 +29,7 @@ def profile_amd(executable, kernel_name):
     metrics["Global Memory Instructions per wave"] = "10.3.0"
     metrics["Global Memory Read Instructions per wave"] = "10.3.1"
     metrics["Global Memory Write Instructions per wave"] = "10.3.2"
-    metrics["Coalesced Instructions (\% of peak)"] = "16.1.3"
+    metrics["Coalesced Instructions (% of peak)"] = "16.1.3"
 
     result_dict = profile_omni(executable,kernel_name, metrics)
     return result_dict
@@ -38,9 +38,9 @@ def profile_amd(executable, kernel_name):
 def profile_omni(executable, kernel_name, metrics):
     
     # profile executable
-    profile_command = ["omniperf profile -n gpu -- ", executable]
+    profile_command = ["omniperf profile -n gpu -- " + executable]
 
-    subprocess.run(profile_command, shell=True, check=True)
+    subprocess.run(profile_command, shell=True, check=True, stdout=subprocess.DEVNULL)
 
 
     # extract kernel number
@@ -50,45 +50,45 @@ def profile_omni(executable, kernel_name, metrics):
     if len(folders) == 0:
         print("Found no profiling outputs in " + directory)
 
-    if len(folders > 1):
+    if len(folders) > 1:
         print("Found no profiling outputs in " + directory + ". Please remove and try again")
 
 
     directory += folders[0]
-    analyze_command = ["omniperf analyze -p ", directory, "--list-stats > kernel_stats.txt"]
+    analyze_command = ["omniperf analyze -p " +  directory + " --list-stats > kernel_stats.txt"]
     subprocess.run(analyze_command, shell=True, check=True)
 
     kernel_line = get_line_with_substring("kernel_stats.txt", kernel_name)  
     
-    parts = kernel_line.split('|')
+    parts = kernel_line.split('│')
     kernel_number = parts[1].strip()
 
     # get stats for passed kernelname
-    analyze_command = "omniperf analyze -p " + directory + "-k " + kernel_number + " > " + kernel_name + "_stats.txt"
+    analyze_command = "omniperf analyze -p " + directory + " -k " + kernel_number + " > " + kernel_name + "_stats.txt"
     subprocess.run(analyze_command, shell=True, check=True)
 
     file = kernel_name + "_stats.txt"
 
-    metric_dict["Runtime"] = float(get_line_with_substring(file, kernel_name).split('|')[4].strip())
-
     metric_dict = {}
+    
+    metric_dict["Runtime"] = float(get_line_with_substring(file, kernel_name).split('│')[4].strip())
+
     for name, prof_metric in metrics.items():
         line = get_line_with_substring(file, prof_metric)
-        line_split = line.split('|')
-        metric_value = float(line_split[3].strip())
+        line_split = line.split('│')
+        val = line_split[3].strip()
+        if val == "":
+            val = 0
+        metric_value = float(val)
         metric_dict[name] = metric_value
     return metric_dict
 
 
 def profile_nsys(executable, kernel_name):
-    profile_command = "ncu --metrics l1tex__average_t_sectors_per_request_pipe_lsu_mem_global_op_ld.pct,l1tex__average_t_sectors_per_request_pipe_lsu_mem_global_op_ld.ratio,l1tex__data_bank_conflicts_pipe_lsu_mem_shared_op_ld.sum,l1tex__data_bank_conflicts_pipe_lsu_mem_shared_op_st.sum,l1tex__average_t_sectors_per_request_pipe_lsu_mem_global_op_st.pct,l1tex__average_t_sectors_per_request_pipe_lsu_mem_global_op_st.ratio,l1tex__t_sectors_pipe_lsu_mem_global_op_ld.avg,l1tex__t_sectors_pipe_lsu_mem_global_op_ld.max,l1tex__t_sectors_pipe_lsu_mem_global_op_ld.min,l1tex__t_sectors_pipe_lsu_mem_global_op_ld.sum,l1tex__t_sectors_pipe_lsu_mem_global_op_st.avg,l1tex__t_sectors_pipe_lsu_mem_global_op_st.max,l1tex__t_sectors_pipe_lsu_mem_global_op_st.min,l1tex__t_sectors_pipe_lsu_mem_global_op_st.sum,smsp__inst_executed_op_local_ld.sum,smsp__inst_executed_op_local_st.sum,smsp__warp_issue_stalled_barrier_per_warp_active.pct,smsp__warp_issue_stalled_dispatch_stall_per_warp_active.pct,smsp__warp_issue_stalled_drain_per_warp_active.pct,smsp__warp_issue_stalled_imc_miss_per_warp_active.pct,smsp__warp_issue_stalled_lg_throttle_per_warp_active.pct,smsp__warp_issue_stalled_long_scoreboard_per_warp_active.pct,smsp__warp_issue_stalled_math_pipe_throttle_per_warp_active.pct,smsp__warp_issue_stalled_membar_per_warp_active.pct,smsp__warp_issue_stalled_mio_throttle_per_warp_active.pct,smsp__warp_issue_stalled_misc_per_warp_active.pct,smsp__warp_issue_stalled_no_instruction_per_warp_active.pct,smsp__warp_issue_stalled_not_selected_per_warp_active.pct,smsp__warp_issue_stalled_short_scoreboard_per_warp_active.pct,smsp__warp_issue_stalled_sleeping_per_warp_active.pct,smsp__warp_issue_stalled_tex_throttle_per_warp_active.pct,l1tex__data_pipe_lsu_wavefronts_mem_shared_op_st.sum,l1tex__data_pipe_lsu_wavefronts_mem_shared_op_ld.sum,smsp__inst_executed_op_shared_ld.sum,smsp__inst_executed_op_shared_st.sum " + executable + " > ncu_out.txt"
-
-    subprocess.run(profile_command, shell=True, check=True)
-
-    subprocess.run(["nsys profile --gpu-metrics-device=all -o nsys_out.qdrep --force-overwrite true " + executable], shell=True, check=True)
+    subprocess.run(["nsys profile --gpu-metrics-device=all -o nsys_out.qdrep --force-overwrite true " + executable], shell=True, check=True, stdout=subprocess.DEVNULL)
    
     #TODO: check if gpu_kern_sum or gpukernsum is available
-    subprocess.run(["nsys stats --report gpukernsum,gpumemtimesum  nsys_out.qdrep > nsys_reports.txt"], shell=True, check=True)
+    subprocess.run(["nsys stats --report gpukernsum,gpumemtimesum  nsys_out.qdrep > nsys_reports.txt"], shell=True, check=True, stdout=subprocess.DEVNULL)
 
     kernel_line = get_line_with_substring("nsys_reports.txt", kernel_name)
     dtoh_line = get_line_with_substring("nsys_reports.txt", "DtoH")
@@ -119,10 +119,10 @@ def profile_nsys(executable, kernel_name):
 
     #get thread/team config
     thread_line = get_line_with_substring("ncu_full_out.txt", "Block Size")
-    thread = int(thread_line.split()[1].replace(',', ''))
+    thread = int(thread_line.split()[2].replace(',', ''))
 
     grid_line = get_line_with_substring("ncu_full_out.txt", "Grid Size")
-    grid = int(grid_line.split()[1].replace(',', ''))
+    grid = int(grid_line.split()[2].replace(',', ''))
     
     metric_dict["#Threads"] = thread
     metric_dict["#Teams"] = grid
@@ -159,6 +159,11 @@ def profile_nsys(executable, kernel_name):
     # TODO register spills. could be done using GPU Scout analysis. Or indicatory metrics as l1 accesses
 
     # TODO coalescing 
+    
+    metrics_string = ','.join(value for value in ncu_metrics.values() if isinstance(value, str))
+    profile_command = "ncu --metrics " + metrics_string + " " + executable + " > ncu_out.txt"
+    subprocess.run(profile_command, shell=True, check=True, stdout=subprocess.DEVNULL)
+
 
     # get all metrics from profilig output and store them in dict
     for name, prof_metric in ncu_metrics.items():
@@ -198,8 +203,9 @@ def main():
     
     results = {}
 
-
+    print("Profiling for: " + args.gpu)
     for executable, name in exec_name_pairs:
+        print("Profiling " + executable)
         res_dict = {}
         if args.gpu == "amd":
             res_dict = profile_amd(executable, name)
@@ -211,6 +217,7 @@ def main():
 
     
     keys = results[exec_name_pairs[0][0]].keys()
+    del_keys = []
 
     for key in keys:
         # Get the value of the key from the first executable's dictionary
@@ -226,18 +233,23 @@ def main():
     
         # If all values for this key are the same, remove it from all dictionaries
         if all_same:
-            for executable, _ in exec_name_pairs:
-                del results[executable][key]
+            del_keys.append(key)
+
+    for key in del_keys:
+        for executable, _ in exec_name_pairs:
+            del results[executable][key]
 
     
     test_name = args.test_name
 
     stripped_dict = {key.rsplit('/', 1)[-1]: value for key, value in results.items()}
-
+    pd.set_option('display.float_format', '{:.2f}'.format)
     df = pd.DataFrame(stripped_dict)
     if test_name is not None:
         if not test_name.endswith('.csv'):
             test_name += '.csv'
         df.to_csv(test_name, index=False)
     print(df)
-    
+
+if  __name__ == "__main__":
+    main()

@@ -13,7 +13,7 @@ else ifeq ($(CC), clang++)
 	ifeq ($(findstring gfx, $(GPU_ARCH)),gfx)
     	CXXFLAGS_COMPILER = -fopenmp -target x86_64-pc-linux-gnu -fopenmp-targets=amdgcn-amd-amdhsa -Xopenmp-target=amdgcn-amd-amdhsa -march=$(GPU_ARCH)
 	else ifeq ($(findstring sm, $(GPU_ARCH)),sm)
-		CXXFLAGS_COMPILER = -fopenmp -fopenmp-targets=nvptx64 -Xopenmp-target=nvptx64 -march=$(GPU_ARCH)
+		CXXFLAGS_COMPILER = -fopenmp -fopenmp-targets=nvptx64 -Xopenmp-target=nvptx64 #-march=$(GPU_ARCH) --cuda-gpu-arch=$(GPU_ARCH)
 	else 
 		$(error Unsupported architecture: $(GPU_ARCH))
 	endif
@@ -29,13 +29,13 @@ test_threads_all: test_threads_explicit test_threads_explicit_with_limit test_th
 
 
 test_threads_explicit: threads_explicit.cpp
-		$(CC) $(CXXFLAGS_COMPILER) $(CXXFLAGS_COMMON) $(CXXFLAGS_EXTRA) -O3 $< -o $@
+		$(CC) $(CXXFLAGS_EXTRA) $(CXXFLAGS_COMPILER) $(CXXFLAGS_COMMON) -O3 $< -o $@
 
 test_threads_explicit_with_limit: threads_explicit_with_limit.cpp
-		$(CC) $(CXXFLAGS_COMPILER) $(CXXFLAGS_COMMON) $(CXXFLAGS_EXTRA) -O3 $< -o $@
+		$(CC) $(CXXFLAGS_EXTRA) $(CXXFLAGS_COMPILER) $(CXXFLAGS_COMMON) -O3 $< -o $@
 
 test_threads_explicit_as_const: threads_explicit_as_const.cpp
-		$(CC) $(CXXFLAGS_COMPILER) $(CXXFLAGS_COMMON) $(CXXFLAGS_EXTRA) -O3 $< -o $@
+		$(CC) $(CXXFLAGS_EXTRA) $(CXXFLAGS_COMPILER) $(CXXFLAGS_COMMON) -O3 $< -o $@
 
 
 clean:

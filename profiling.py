@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 import subprocess
 import os
 import argparse
@@ -85,10 +86,10 @@ def profile_omni(executable, kernel_name, metrics):
 
 
 def profile_nsys(executable, kernel_name):
-    subprocess.run(["nsys profile --gpu-metrics-device=all -o nsys_out.qdrep --force-overwrite true " + executable], shell=True, check=True, stdout=subprocess.DEVNULL)
+    subprocess.run(["nsys profile --gpu-metrics-device=all -o nsys_out.qdrep --force-overwrite true " + executable], shell=True, check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
    
     #TODO: check if gpu_kern_sum or gpukernsum is available
-    subprocess.run(["nsys stats --report gpukernsum,gpumemtimesum  nsys_out.qdrep > nsys_reports.txt"], shell=True, check=True, stdout=subprocess.DEVNULL)
+    subprocess.run(["nsys stats --report gpukernsum,gpumemtimesum  nsys_out.qdrep > nsys_reports.txt"], shell=True, check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
     kernel_line = get_line_with_substring("nsys_reports.txt", kernel_name)
     dtoh_line = get_line_with_substring("nsys_reports.txt", "DtoH")

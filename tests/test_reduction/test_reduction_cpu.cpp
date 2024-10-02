@@ -9,7 +9,7 @@
 double dot(double* a, double* b, double* sums)
 {
   const int num_teams = (int) NUM_TEAMS;
-  const int num_threads = (int) NUM_THREADS -1 ;
+  const int num_threads = (int) NUM_THREADS;
 #pragma omp target teams num_teams(num_teams) thread_limit(num_threads)
    {
   sums[omp_get_team_num()] = 0;

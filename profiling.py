@@ -100,11 +100,10 @@ def profile_nsys(executable, kernel_name):
     kernel_time = int(kernel_line_list[1].replace(',', ''))
 
     dtoh_list = dtoh_line.split()
-
+    
     dtoh_time = int(dtoh_list[1].replace(',', ''))  
 
     htod_list = htod_line.split()
-
     htod_time = int(htod_list[1].replace(',', '')) 
 
     metric_dict = {}
@@ -249,7 +248,7 @@ def main():
     if test_name is not None:
         if not test_name.endswith('.csv'):
             test_name += '.csv'
-        df.to_csv(test_name, index=False)
+        df.to_csv(test_name, index=True)
     print(df)
 
 if  __name__ == "__main__":

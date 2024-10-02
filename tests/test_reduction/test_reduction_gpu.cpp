@@ -15,7 +15,7 @@ double dot(double* a, double* b)
 
   for (int i = 0; i < SIZE; i++)
   {
-    sum += a[i] * b[i];
+    sum += a[i] + b[i];
   }
 
 #pragma omp target exit data map(from: sum)
@@ -35,14 +35,14 @@ int main(){
   for (int i = 0; i < SIZE; i++)
   {
     a[i] = (double) i;
-    b[i] = 2*(double)i;
+    b[i] = (double)i;
   }
 
   double sum = dot(a, b);
 
   double sum_wanted = 0;
   for (int i = 0; i < SIZE; i++){
-    sum_wanted += (double)i * 2* (double)i;
+    sum_wanted += (double)i + (double)i;
   }
   
   printf("%f\n", sum);

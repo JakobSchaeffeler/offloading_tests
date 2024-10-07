@@ -15,10 +15,10 @@ else ifeq ($(CC), clang++)
 	else ifeq ($(findstring sm, $(GPU_ARCH)),sm)
 		CXXFLAGS_COMPILER = -fopenmp -fopenmp-targets=nvptx64 -Xopenmp-target=nvptx64 #-march=$(GPU_ARCH) --cuda-gpu-arch=$(GPU_ARCH)
 	else 
-		$(error Unsupported architecture: $(GPU_ARCH))
+		$(info Unknown architecture $(GPU_ARCH), trying to compile with manual flags from CXXFLAGS_COMMON)
 	endif
 else	
-    $(error Unsupported compiler: $(CC))
+    $(info Unknown compiler $(CC), no automatic flags are added, trying to compile with manual flags from CXXFLAGS_COMMON)
 endif
 
 test_threads_default: threads_default.cpp

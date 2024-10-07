@@ -47,7 +47,7 @@ void coalesced_access(short *data, int N){
 	}
 }
 
-void uncoalesced_access(short *data, int N, int stride){
+void uncoal_access(short *data, int N, int stride){
 #pragma omp target teams distribute parallel for
 	for (int i = 0; i < N; i += stride) {
 	    data[i] += 1.0;  // Uncoalesced access
@@ -94,7 +94,7 @@ void uniform_branch(double *data, int N) {
 }
 
 void multiple_access_not_cached(double *data, int N) {
-#pragma omp target teams distribute parallel for
+#pragma omp target teams distribute parallel for num_threads(256) num_teams(114688)
         for (int i = 0; i < N; i++) {
             if (i < N) {  // Uniform branch
                 data[i] += data[N-i -1];
@@ -121,7 +121,7 @@ int main(){
   stencil_1d(a,c,SIZE);
   atomic_add(c,SIZE);
   coalesced_access((short*)c, SIZE*4);
-  uncoalesced_access((short*)c, SIZE*4, 16);
+  uncoal_access((short*)c, SIZE*4, 16);
   register_spill(c, SIZE);
   branch_divergence(c, SIZE);
   uniform_branch(c, SIZE);

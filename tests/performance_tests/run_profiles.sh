@@ -1,7 +1,8 @@
 #!/bin/bash
 
 # List of test names
-test_names=("vec_add" "stencil_1d" "atomic_add" "coalesced_access" "uncoalesced_access" "multiple_access_not_cached" "register_spill" "uniform_branch" "branch_divergence")
+test_names=("vec_add" "stencil_1d" "atomic_add" "coalesced_access" "uncoal_access" "multiple_access_not_cached" "register_spill" "uniform_branch" "branch_divergence")
+
 mkdir -p "../../results/performance_results"
 
 # Base command template

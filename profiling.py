@@ -4,6 +4,47 @@ import os
 import argparse
 import pandas as pd
 
+def get_largest_substring(str1, str2):
+    max_substring = ""  # Initialize the largest substring found
+    
+    # Iterate through all possible substrings of str1
+    for i in range(len(str1)):
+        for j in range(i + 1, len(str1) + 1):
+            substring = str1[i:j]
+            # Check if the substring exists in str2
+            if substring in str2:
+                # Update the max_substring if the found substring is larger
+                if len(substring) > len(max_substring):
+                    max_substring = substring
+
+    return max_substring
+
+def get_line_with_substring_linebreak(filename, substring):
+    with open(filename, 'r') as file:
+        # Read the first line
+        line = next(file, None)  # Use next() with default to handle empty files
+
+        while line is not None:
+            # Check if the line contains the desired substring
+            if substring in line:
+                return line
+            
+            # Try to get the next line
+            next_line = next(file, None)
+
+            # Check for line breaks in the substring comparison
+            largest_substring = get_largest_substring(substring, line)
+            if len(largest_substring) > 0:
+                rest = substring.replace(largest_substring, "")
+                # Only check next_line if it exists
+                if next_line is not None and rest in next_line:
+                    return line
+            
+            # Move to the next line
+            line = next_line
+
+    # Return None if no matching line is found
+    return None
 
 
 def get_line_with_substring(filename, substring):
@@ -12,7 +53,6 @@ def get_line_with_substring(filename, substring):
             # Check if the line contains the desired substring
             if substring in line:
                 return line
-
     print("Error in parsing profiling output: No line containing the substring " + substring + " was found.")
     return None
 
@@ -59,8 +99,7 @@ def profile_omni(executable, kernel_name, metrics):
     analyze_command = ["omniperf analyze -p " +  directory + " --list-stats > kernel_stats.txt"]
     subprocess.run(analyze_command, shell=True, check=True)
 
-    kernel_line = get_line_with_substring("kernel_stats.txt", kernel_name)  
-    
+    kernel_line = get_line_with_substring_linebreak("kernel_stats.txt", kernel_name)  
     parts = kernel_line.split('│')
     kernel_number = parts[1].strip()
 
@@ -71,8 +110,7 @@ def profile_omni(executable, kernel_name, metrics):
     file = kernel_name + "_stats.txt"
 
     metric_dict = {}
-    
-    metric_dict["Runtime"] = float(get_line_with_substring(file, kernel_name).split('│')[4].strip())
+    metric_dict["Runtime"] = float(get_line_with_substring_linebreak(file, kernel_name).split('│')[4].strip())
 
     for name, prof_metric in metrics.items():
         line = get_line_with_substring(file, prof_metric)
@@ -191,6 +229,8 @@ def main():
     # Add executables and names as pairs
     parser.add_argument('exec_name_pairs', nargs='+', help='Pairs of executables and their corresponding kernel names to profile. Example: ./exec1 name1 ./exec2 name2')
 
+    parser.add_argument("--verbose", action="store_true", help="Enable verbose output.")
+
     # Parse the arguments
     args = parser.parse_args()
 
@@ -218,26 +258,26 @@ def main():
     
     keys = results[exec_name_pairs[0][0]].keys()
     del_keys = []
+    if not args.verbose:
+        for key in keys:
+            # Get the value of the key from the first executable's dictionary
+            first_value = results[exec_name_pairs[0][0]][key]
+        
+            # Compare this value with the same key in the other dictionaries
+            all_same = True
+            for executable, name in exec_name_pairs[1:]:
+                # If the value differs from the first one, set all_same to False
+                if results[executable][key] != first_value:
+                    all_same = False
+                    break
+        
+            # If all values for this key are the same, remove it from all dictionaries
+            if all_same:
+                del_keys.append(key)
 
-    for key in keys:
-        # Get the value of the key from the first executable's dictionary
-        first_value = results[exec_name_pairs[0][0]][key]
-    
-        # Compare this value with the same key in the other dictionaries
-        all_same = True
-        for executable, name in exec_name_pairs[1:]:
-            # If the value differs from the first one, set all_same to False
-            if results[executable][key] != first_value:
-                all_same = False
-                break
-    
-        # If all values for this key are the same, remove it from all dictionaries
-        if all_same:
-            del_keys.append(key)
-
-    for key in del_keys:
-        for executable, _ in exec_name_pairs:
-            del results[executable][key]
+        for key in del_keys:
+            for executable, _ in exec_name_pairs:
+                del results[executable][key]
 
     
     test_name = args.test_name

@@ -45,7 +45,7 @@ __global__ void coalesced_access(short *data, int N) {
     }
 }
 
-__global__ void uncoalesced_access(short *data, int N, int stride) {
+__global__ void uncoal_access(short *data, int N, int stride) {
     int idx = blockIdx.x * blockDim.x + threadIdx.x;
     if (idx * stride < N) {
         data[idx * stride] += 1.0;  
@@ -124,7 +124,7 @@ int main(){
 	
 	coalesced_access<<<SIZE/TBSIZE, TBSIZE>>>((short*)dc, SIZE*4);
 	
-	uncoalesced_access<<<SIZE/TBSIZE, TBSIZE>>>((short*)dc, SIZE*4, 16);
+	uncoal_access<<<SIZE/TBSIZE, TBSIZE>>>((short*)dc, SIZE*4, 16);
 
 	register_spill<<<SIZE/TBSIZE, TBSIZE>>>(dc, SIZE);
 

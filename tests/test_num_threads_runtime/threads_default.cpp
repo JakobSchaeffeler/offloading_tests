@@ -8,7 +8,7 @@
 
 void triad(double* a, double* b, double* c, double scalar, int array_size)
 {
-#pragma omp target teams distribute parallel for simd num_threads(NUM_THREADS) num_teams(NUM_TEAMS)
+#pragma omp target teams distribute parallel for simd 
   for (int i = 0; i < array_size; i++)
   {
     a[i] = b[i] + scalar * c[i];
@@ -29,7 +29,7 @@ int main(){
 #pragma omp target enter data map(alloc: a[0:SIZE], b[0:SIZE], c[0:SIZE])
 
   // init on device
-#pragma omp target teams distribute parallel for simd num_threads(NUM_THREADS) num_teams(NUM_TEAMS)
+#pragma omp target teams distribute parallel for simd 
   for (int i = 0; i < SIZE; i++)
   {
     b[i] = i;
@@ -43,14 +43,12 @@ int main(){
   double sum_wanted = 0;
   for (int i = 0; i < SIZE; i++){
     sum += a[i];
-    sum_wanted += i + (2*i)*scal;
+    sum_wanted += i + 2*i*scal;
   }
   if (sum != sum_wanted){
-    std::cout << "Error in thread exlicit test" << std::endl;
-    return -1;
+    std::cout << "Error in thread default test" << std::endl;
   }
 
-  return 0;
 #pragma omp target exit data map(release: a[0:SIZE], b[0:SIZE], c[0:SIZE])
 
 }

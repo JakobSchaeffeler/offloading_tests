@@ -286,6 +286,9 @@ def main():
     pd.set_option('display.float_format', '{:.2f}'.format)
     df = pd.DataFrame(stripped_dict)
     if test_name is not None:
+        if not os.path.exists("results"):
+            os.makedirs("results")
+        test_name = "results/" + test_name
         if not test_name.endswith('.csv'):
             test_name += '.csv'
         df.to_csv(test_name, index=True)

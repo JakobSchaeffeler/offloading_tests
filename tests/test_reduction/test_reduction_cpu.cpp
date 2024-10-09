@@ -6,7 +6,7 @@
 #define ALIGNMENT (2*1024*1024)
 
 
-double dot(double* a, double* b, double* sums)
+double reduction_cpu(double* a, double* b, double* sums)
 {
   const int num_teams = (int) NUM_TEAMS;
   const int num_threads = (int) NUM_THREADS;
@@ -46,7 +46,7 @@ int main(){
     b[i] = i;
   }
 
-  double sum = dot(a, b, sums);
+  double sum = reduction_cpu(a, b, sums);
 
   double sum_wanted = 0;
   

@@ -6,7 +6,7 @@
 #define ALIGNMENT (2*1024*1024)
 
 
-double dot(double* a, double* b)
+double reduction_gpu(double* a, double* b)
 {
   double sum = 0.0;
 #pragma omp target enter data map(to: sum)
@@ -38,7 +38,7 @@ int main(){
     b[i] = (double)i;
   }
 
-  double sum = dot(a, b);
+  double sum = reduction_gpu(a, b);
 
   double sum_wanted = 0;
   for (int i = 0; i < SIZE; i++){

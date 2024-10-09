@@ -6,11 +6,11 @@
 #define ALIGNMENT (2*1024*1024)
 
 
-void triad(double* a, double* b, double* c, double scalar, int array_size)
+void omp_threads_explicit_const(double* a, double* b, double* c, double scalar, int array_size)
 {
     const int num_teams = NUM_TEAMS;
     const int num_threads = NUM_THREADS;
-#pragma omp target teams distribute parallel for simd num_threads(NUM_THREADS) num_teams(NUM_TEAMS) thread_limit(NUM_THREADS)
+#pragma omp target teams distribute parallel for simd num_threads(NUM_THREADS) num_teams(NUM_TEAMS)
   for (int i = 0; i < array_size; i++)
   {
     a[i] = b[i] + scalar * c[i];
@@ -40,7 +40,7 @@ int main(){
     c[i] = 2*i;
   }
   double scal = 1.5;
-  triad(a, b, c, scal, SIZE);
+  omp_threads_explicit_const(a, b, c, scal, SIZE);
 
 #pragma omp target update from(a[0:SIZE])
   double sum = 0;
@@ -51,8 +51,9 @@ int main(){
   }
   if (sum != sum_wanted){
     std::cout << "Error in thread exlicit test" << std::endl;
+    return -1;
   }
-
+  return 0;
 #pragma omp target exit data map(release: a[0:SIZE], b[0:SIZE], c[0:SIZE])
 
 }

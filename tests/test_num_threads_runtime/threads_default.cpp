@@ -6,7 +6,7 @@
 #define ALIGNMENT (2*1024*1024)
 
 
-void triad(double* a, double* b, double* c, double scalar, int array_size)
+void omp_default(double* a, double* b, double* c, double scalar, int array_size)
 {
 #pragma omp target teams distribute parallel for simd 
   for (int i = 0; i < array_size; i++)
@@ -36,7 +36,7 @@ int main(){
     c[i] = 2*i;
   }
   double scal = 1.5;
-  triad(a, b, c, scal, SIZE);
+  omp_default(a, b, c, scal, SIZE);
 
 #pragma omp target update from(a[0:SIZE])
   double sum = 0;
@@ -47,7 +47,9 @@ int main(){
   }
   if (sum != sum_wanted){
     std::cout << "Error in thread default test" << std::endl;
+    return -1;
   }
+  return 0;
 
 #pragma omp target exit data map(release: a[0:SIZE], b[0:SIZE], c[0:SIZE])
 

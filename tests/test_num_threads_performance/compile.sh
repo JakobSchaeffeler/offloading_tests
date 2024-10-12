@@ -18,7 +18,7 @@ if [[ "$ARCH" == *"sm"* ]]; then
     # get team/thread config from default benchmark
     ncu ./test_threads_default > ncu_out.txt
 
-    sed -n '/triad/,$p' ncu_out.txt > ncu_out_kernel.txt
+    sed -n '/omp_default/,$p' ncu_out.txt > ncu_out_kernel.txt
 
     BLOCK_LINE=$(grep -m 1 "Block Size" "ncu_out_kernel.txt")
     BLOCK_SIZE=$(echo $BLOCK_LINE | awk '{print $NF}')
@@ -43,7 +43,7 @@ if [[ "$ARCH" == *"gfx"* ]]; then
     rocprof ./test_threads_default > /tmp/blubb
 
     CSV_FILE=results.csv
-    SUBSTRING=triad
+    SUBSTRING=omp_default
 
     read -r GRD WGR <<< $(awk -F',' -v substring="$SUBSTRING" '
         $0 ~ substring { 

@@ -56,7 +56,9 @@ int main(){
   
   if (sum != sum_wanted){
     std::cout << "Error in reduction cpu test" << std::endl;
+    return -1;
   }
+  return 0;
 
 #pragma omp target exit data map(release: a[0:SIZE], b[0:SIZE])
 

@@ -17,23 +17,21 @@ for dir in "$BASE_DIR"/*; do
 	fi
 	
 	# Execute the file and capture the output
-        OUTPUT=$("$exec $args" 2>&1)
-	
-	if $first_exec; then
-		OUTPUT_CHECK="$OUTPUT"
-		first_exec=false
-	fi
-	
+        OUTPUT=$("./$exec" $args 2>&1)
         # Check if execution was successful
         if [ $? -ne 0 ]; then
           echo "[FAILED] Execution failed for: $exec"
 	  echo "$OUTPUT"
-        else
         fi
+	OUTPUT=$(echo "$OUTPUT" | tr -dc '0-9')
+	if $first_exec; then
+		OUTPUT_CHECK="$OUTPUT"
+		first_exec=false
+	fi
 	if [ "$OUTPUT" != "$OUTPUT_CHECK" ]; then
             echo "[FAILED] Output mismatch for executables in $dir"
             echo "Current Output: $OUTPUT"
-            echo "First Output $OUTPUT_CHECK"
+            echo "First Output: $OUTPUT_CHECK"
         fi
 
       fi

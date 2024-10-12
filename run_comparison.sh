@@ -13,8 +13,7 @@ python comparison.py --metrics "#Threads" "#Teams" "Grid Size" --verbose 10 resu
 echo "Checking for differences in performance tests..."
 for test_name in "${test_names[@]}"
 do
-  echo "Running performance test: $test_name"
-  python comparison.py --verbose 10 results/$performance_exec.csv 
+  python comparison.py --verbose 10 results/$test_name.csv 
 done
 
 

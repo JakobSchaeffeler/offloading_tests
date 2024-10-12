@@ -57,7 +57,7 @@ def get_line_with_substring(filename, substring):
     return None
 
 
-def profile_amd(executable, kernel_name):
+def profile_amd(executable, kernel_name, no_rerun):
     metrics = {}
     
     
@@ -72,15 +72,14 @@ def profile_amd(executable, kernel_name):
     metrics["Global Memory Write Instructions per wave"] = "10.3.2"
     metrics["Coalesced Instructions (% of peak)"] = "16.1.3"
 
-    result_dict = profile_omni(executable,kernel_name, metrics)
+    result_dict = profile_omni(executable,kernel_name, metrics, no_rerun)
     return result_dict
 
 
-def profile_omni(executable, kernel_name, metrics):
+def profile_omni(executable, kernel_name, metrics, no_rerun):
     
-    # profile executable
     profile_command = ["omniperf profile -n gpu -- " + executable]
-
+    # profile executable
     subprocess.run(profile_command, shell=True, check=True, stdout=subprocess.DEVNULL)
 
 
@@ -123,8 +122,9 @@ def profile_omni(executable, kernel_name, metrics):
     return metric_dict
 
 
-def profile_nsys(executable, kernel_name):
-    subprocess.run(["nsys profile --gpu-metrics-device=all -o nsys_out.qdrep --force-overwrite true " + executable], shell=True, check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+def profile_nsys(executable, kernel_name, no_rerun):
+    if not no_rerun:
+        subprocess.run(["nsys profile --gpu-metrics-device=all -o nsys_out.qdrep --force-overwrite true " + executable], shell=True, check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
    
     #TODO: check if gpu_kern_sum or gpukernsum is available
     subprocess.run(["nsys stats --report gpukernsum,gpumemtimesum  nsys_out.qdrep > nsys_reports.txt"], shell=True, check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
@@ -229,7 +229,12 @@ def main():
     # Add executables and names as pairs
     parser.add_argument('exec_name_pairs', nargs='+', help='Pairs of executables and their corresponding kernel names to profile. Example: ./exec1 name1 ./exec2 name2')
 
-    parser.add_argument("--verbose", action="store_true", help="Enable verbose output.")
+    parser.add_argument("--verbose", nargs="?", const=True, type=float, 
+                    help="If verbose is set without a value, print all items that differ. If a number is passed, only print items that differ by at least that percentage.") 
+    
+    parser.add_argument("--no_rerun", action="store_true", help="Disable that profiler is run again.")
+
+    parser.add_argument("--metrics", nargs="+", help="List of metrics that are not allowed to differ")
 
     # Parse the arguments
     args = parser.parse_args()
@@ -248,43 +253,21 @@ def main():
         print("Profiling " + executable)
         res_dict = {}
         if args.gpu == "amd":
-            res_dict = profile_amd(executable, name)
+            res_dict = profile_amd(executable, name, args.no_rerun)
             # Number of waves = #Teams/32
         elif args.gpu == "nvidia":
-            res_dict = profile_nsys(executable, name)
+            res_dict = profile_nsys(executable, name, args.no_rerun)
 
         results[executable] = res_dict
-
     
-    keys = results[exec_name_pairs[0][0]].keys()
-    del_keys = []
-    if not args.verbose:
-        for key in keys:
-            # Get the value of the key from the first executable's dictionary
-            first_value = results[exec_name_pairs[0][0]][key]
-        
-            # Compare this value with the same key in the other dictionaries
-            all_same = True
-            for executable, name in exec_name_pairs[1:]:
-                # If the value differs from the first one, set all_same to False
-                if results[executable][key] != first_value:
-                    all_same = False
-                    break
-        
-            # If all values for this key are the same, remove it from all dictionaries
-            if all_same:
-                del_keys.append(key)
-
-        for key in del_keys:
-            for executable, _ in exec_name_pairs:
-                del results[executable][key]
-
     
+    # store all metrics in result csv file
     test_name = args.test_name
 
     stripped_dict = {key.rsplit('/', 1)[-1]: value for key, value in results.items()}
     pd.set_option('display.float_format', '{:.2f}'.format)
     df = pd.DataFrame(stripped_dict)
+   
     if test_name is not None:
         if not os.path.exists("results"):
             os.makedirs("results")
@@ -292,7 +275,49 @@ def main():
         if not test_name.endswith('.csv'):
             test_name += '.csv'
         df.to_csv(test_name, index=True)
-    print(df)
+    # print errors for passed metrics that are not allowed to differ
+    
+    if args.metrics:
+        for metric in args.metrics:
+            vals = []
+            for r in results:
+                vals.append(results[r][metric])
+            if len(vals) > 0 and min(vals) != max(vals):
+                print("[Error] Metric " + metric + " differs in " + args.test_name)
+                stripped_dict = {key.rsplit('/', 1)[-1]: {metric: results[key][metric]} for key, value in results.items()}
+                error_frame = pd.DataFrame(stripped_dict)
+                print(error_frame)
 
+    # print warnings if values differ by more than the percentage passed in verbose
+    pct = 0
+    if args.verbose is not None:
+        if args.verbose is True:
+            pct = 0
+        else: 
+            pct = args.verbose
+    keys = results[exec_name_pairs[0][0]].keys()
+    del_keys = []
+    for key in keys:
+        # Get the value of the key from the first executable's dictionary
+        vals = []
+        for r in results:
+            vals.append(results[r][key])
+        min_value = min(vals)
+        max_value = max(vals)
+        percentage_diff = ((max_value - min_value) / min_value) * 100 if min_value != 0 else max_value - min_value
+        if percentage_diff <= pct:
+            del_keys.append(key)
+
+    for key in del_keys:
+        for executable, _ in exec_name_pairs:
+            del results[executable][key]
+
+    if len(results[exec_name_pairs[0][0]].keys()) > 0:    
+        print("[WARNING] The following metrics differ by more than " + str(pct) + "% in " +test_name)
+        stripped_dict = {key.rsplit('/', 1)[-1]: value for key, value in results.items()}
+        pd.set_option('display.float_format', '{:.2f}'.format)
+        df = pd.DataFrame(stripped_dict)
+        print(df)
+   
 if  __name__ == "__main__":
     main()

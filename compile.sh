@@ -11,10 +11,11 @@ ARCH=$2
 
 
 # Base directory containing subdirectories with C++ files
-BASE_DIR="."
+BASE_DIR="tests"
+FULL_PATH=$(realpath "$BASE_DIR")
 
 # Iterate over all subdirectories in the base directory
-for dir in "$BASE_DIR"/*; do
+for dir in "$FULL_PATH"/*; do
   if [ -d "$dir" ]; then
     # Navigate into the directory
     cd "$dir" || continue
@@ -22,7 +23,9 @@ for dir in "$BASE_DIR"/*; do
     # Check if compile.sh exists and is executable
     if [ -f "compile.sh" ] && [ -x "compile.sh" ]; then
       # Run compile.sh and capture output
-      OUTPUT=$(./compile.sh 2>&1)
+      echo "executing ./compile.sh $COMPILER $ARCH 2>&1"
+      echo ".. in $dir"
+      OUTPUT=$(./compile.sh $COMPILER $ARCH 2>&1)
       
       # If compilation fails, print an error and the output
       if [ $? -ne 0 ]; then
@@ -39,6 +42,6 @@ for dir in "$BASE_DIR"/*; do
     fi
 
     # Navigate back to the base directory
-    cd "$BASE_DIR" || exit
+    cd "$FULL_PATH" || exit
   fi
 done

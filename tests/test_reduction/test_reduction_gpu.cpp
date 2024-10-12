@@ -45,11 +45,11 @@ int main(){
     sum_wanted += (double)i + (double)i;
   }
   
-  printf("%f\n", sum);
-  printf("%f\n", sum_wanted);
   if (sum != sum_wanted){
     std::cout << "Error in reduction gpu test" << std::endl;
+    return -1;
   }
+  return 0;
 
 #pragma omp target exit data map(release: a[0:SIZE], b[0:SIZE])
 

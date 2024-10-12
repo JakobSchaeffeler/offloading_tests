@@ -55,23 +55,34 @@ void uncoal_access(short *data, int N, int stride){
 }
 
 void register_spill(double *data, int N) {
-#pragma omp target teams distribute parallel for
-	for (int ii = 0; ii < N; ii++) {
-	    double a, b, c, d, e, f, g, h, i, j;
-	    a = data[ii];
-	    b = a * 2;
-	    c = b * 2;
-	    d = c * 2;
-	    e = d * 2;
-	    f = e * 2;
-	    g = f * 2;
-	    h = g * 2;
-	    i = h * 2;
-	    j = i * 2;
-	    data[ii] = j;  
-	}
-}
+    #pragma omp target teams distribute parallel for
+    for (int i = 0; i < N; i++) {
+  	double temp[1000];  // Increase array size
+        double additional_vars[1000];
 
+        for (int j = 0; j < 1000; j++) {
+            temp[j] = data[i] * j;
+            additional_vars[j] = data[i] + j;  // Introduce more temporary variables
+        }
+
+        double sum = 0;
+        for (int j = 0; j < 1000; j++) {
+            sum += temp[j] + additional_vars[j];
+        }	
+	/*
+	double temp[100];
+        for(int j = 0; j < 100; j++){
+        // Force register spilling by using local arrays
+        	temp[j] = data[j] * j;
+	}
+	double sum = 0; 
+	for(int j = 0; j < 100; j++){
+		sum += temp[j];
+	}
+	*/
+        data[i] = sum;
+    }
+}
 
 void branch_divergence(double *data, int N) {
 #pragma omp target teams distribute parallel for
@@ -94,7 +105,7 @@ void uniform_branch(double *data, int N) {
 }
 
 void multiple_access_not_cached(double *data, int N) {
-#pragma omp target teams distribute parallel for num_threads(256) num_teams(114688)
+#pragma omp target teams distribute parallel for 
         for (int i = 0; i < N; i++) {
             if (i < N) {  // Uniform branch
                 data[i] += data[N-i -1];
@@ -116,19 +127,20 @@ int main(){
 #pragma omp target enter data map(to: a[0:SIZE], b[0:SIZE])
 #pragma omp target enter data map(alloc:c[0:SIZE])
 
-
-  vec_add(a,b,c);
-  stencil_1d(a,c,SIZE);
-  atomic_add(c,SIZE);
-  coalesced_access((short*)c, SIZE*4);
-  uncoal_access((short*)c, SIZE*4, 16);
-  register_spill(c, SIZE);
-  branch_divergence(c, SIZE);
-  uniform_branch(c, SIZE);
-  multiple_access_not_cached(c, SIZE);
+  for(int i = 0; i < 10; i++){
+	  vec_add(a,b,c);
+	  stencil_1d(a,c,SIZE);
+	  atomic_add(c,SIZE);
+	  coalesced_access((short*)c, SIZE*4);
+	  uncoal_access((short*)c, SIZE*4, 16);
+	  //register_spill(c, SIZE);
+	  branch_divergence(c, SIZE);
+	  uniform_branch(c, SIZE);
+	  multiple_access_not_cached(c, SIZE);
+  }
 #pragma omp target update from(c[0:SIZE])
 #pragma omp target exit data map(release: a[0:SIZE], b[0:SIZE], c[0:SIZE])
-  printf("c0:%f ", c[0] );
+  printf("c0: %f", c[0] );
 
 
 }

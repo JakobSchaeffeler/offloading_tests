@@ -20,6 +20,7 @@ else ifeq ($(CC), clang++)
 else	
     $(error Unsupported compiler: $(CC))
 endif
+.PHONY: test_reduction_gpu test_reduction_cpu
 
 test_reduction_gpu: test_reduction_gpu.cpp
 		$(CC) $(CXXFLAGS_EXTRA) $(CXXFLAGS_COMPILER) $(CXXFLAGS_COMMON) $< -o $@

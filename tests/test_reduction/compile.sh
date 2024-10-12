@@ -9,17 +9,14 @@ fi
 COMPILER=$1
 ARCH=$2
 
-
-
 if [[ "$ARCH" == *"sm"* ]]; then 
     # build default benchmark
-    make test_threads_default CC=$COMPILER GPU_ARCH=$ARCH
+    make test_reduction_gpu CC=$COMPILER GPU_ARCH=$ARCH
 
-    make test_threads_explicit CC=$COMPILER GPU_ARCH=$ARCH 
-    
-    ncu ./test_threads_default > ncu_out.txt
+    # get team/thread config from default benchmark
+    ncu ./test_reduction_gpu > ncu_out.txt
 
-    sed -n '/omp_default/,$p' ncu_out.txt > ncu_out_kernel.txt
+    sed -n '/dot/,$p' ncu_out.txt > ncu_out_kernel.txt
 
     BLOCK_LINE=$(grep -m 1 "Block Size" "ncu_out_kernel.txt")
     BLOCK_SIZE=$(echo $BLOCK_LINE | awk '{print $NF}')
@@ -29,19 +26,22 @@ if [[ "$ARCH" == *"sm"* ]]; then
 
     BLOCK_SIZE="${BLOCK_SIZE//,/}"
     GRID_SIZE="${GRID_SIZE//,/}"
-    echo "$GRID_SIZE $BLOCK_SIZE $BLOCK_SIZE" > args
+
+    # build all other benchmarks with team/thread config
+    make test_reduction_cpu CC=$COMPILER GPU_ARCH=$ARCH CXXFLAGS_EXTRA="-DNUM_THREADS=$BLOCK_SIZE -DNUM_TEAMS=$GRID_SIZE" CXXFLAGS_COMMON="-O3"
+
 fi
 
 
 if [[ "$ARCH" == *"gfx"* ]]; then 
 
     # first compiler reduction gpu and get thread/team config
-    make test_threads_default CC=$COMPILER GPU_ARCH=$ARCH
+    make test_reduction_gpu CC=$COMPILER GPU_ARCH=$ARCH
 
-    rocprof ./test_threads_default > /tmp/blubb
+    rocprof ./test_reduction_gpu
 
     CSV_FILE=results.csv
-    SUBSTRING=omp_default
+    SUBSTRING=reduction_gpu
 
     read -r GRD WGR <<< $(awk -F',' -v substring="$SUBSTRING" '
         $0 ~ substring { 
@@ -51,7 +51,8 @@ if [[ "$ARCH" == *"gfx"* ]]; then
             exit;  # Stop after finding the first match
         }
     ' "$CSV_FILE")
-
+    echo $GRD
+    echo $WGR
     # Check if the values were successfully extracted
     if [ -z "$GRD" ] || [ -z "$WGR" ]; then
         echo "Error: Failed to extract grd and wgr values."
@@ -65,7 +66,10 @@ if [[ "$ARCH" == *"gfx"* ]]; then
     NUM_TEAMS=$(($GRD / $WGR))
     
     #build reduction on cpu with same config
-    echo "$NUM_TEAMS $NUM_THREADS $NUM_THREADS" > args
-    make test_threads_explicit_with_limit CC=$COMPILER GPU_ARCH=$ARCH 
-    make test_threads_explicit CC=$COMPILER GPU_ARCH=$ARCH 
+
+    echo "make test_reduction_cpu CC=$COMPILER GPU_ARCH=$ARCH CXXFLAGS_EXTRA=\"-DNUM_THREADS=$NUM_THREADS -DNUM_TEAMS=$NUM_TEAMS\""
+
+
+    make test_reduction_cpu CC=$COMPILER GPU_ARCH=$ARCH CXXFLAGS_EXTRA="-DNUM_THREADS=$NUM_THREADS -DNUM_TEAMS=$NUM_TEAMS"
+
 fi

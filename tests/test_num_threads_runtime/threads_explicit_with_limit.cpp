@@ -5,15 +5,17 @@
 #define SIZE 29360128
 #define ALIGNMENT (2*1024*1024)
 
-
-void thread_team_explicit(double* a, double* b, double* c, double scalar, int array_size, int num_threads, int num_teams)
+void thread_team_explicit_with_limit(double* a, double* b, double* c, double scalar, int array_size, int num_threads, int num_teams, int threadsLimit)
 {
-#pragma omp target teams distribute parallel for simd num_threads(num_threads) num_teams(num_teams)
+#pragma omp target teams distribute parallel for simd num_threads(num_threads) num_teams(num_teams) thread_limit(num_threads)
   for (int i = 0; i < array_size; i++)
   {
     a[i] = b[i] + scalar * c[i];
   }
 }
+
+
+
 
 
 int main(int argc, char *argv[]) {
@@ -35,6 +37,7 @@ int main(int argc, char *argv[]) {
   double* a = (double*)aligned_alloc(ALIGNMENT, sizeof(double)*SIZE);
   double* b = (double*)aligned_alloc(ALIGNMENT, sizeof(double)*SIZE);
   double* c = (double*)aligned_alloc(ALIGNMENT, sizeof(double)*SIZE);
+
   // alloc on device
 #pragma omp target enter data map(alloc: a[0:SIZE], b[0:SIZE], c[0:SIZE])
 
@@ -46,7 +49,7 @@ int main(int argc, char *argv[]) {
     c[i] = 2*i;
   }
   double scal = 1.5;
-  thread_team_explicit(a, b, c, scal, SIZE, num_threads, num_teams);
+  thread_team_explicit_with_limit(a, b, c, scal, SIZE, num_threads, num_teams, num_threads);
 
 #pragma omp target update from(a[0:SIZE])
   double sum = 0;

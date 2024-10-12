@@ -21,6 +21,7 @@ else
     $(info Unknown compiler $(CC), no automatic flags are added, trying to compile with manual flags from CXXFLAGS_COMMON)
 endif
 
+.PHONY: test_threads_all test_threads_default test_threads_explicit test_threads_explicit_with_limit test_threads_explicit_as_const
 test_threads_default: threads_default.cpp
 		$(CC) $(CXXFLAGS_COMPILER) $(CXXFLAGS_COMMON) $(CXXFLAGS_EXTRA) -O3 $< -o $@
 

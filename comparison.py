@@ -22,8 +22,9 @@ def main():
     
 
     df = pd.read_csv(args.csv_file)
-    test = os.path.basename(args.csv_file)
+    test = args.csv_file #os.path.basename(args.csv_file)
     test = test.replace(".csv", "")
+    differing_metrics = []
     print("Processing test results of " + test)
     if args.metrics:
         for metric in args.metrics:
@@ -36,7 +37,7 @@ def main():
                     print(f"[ERROR] {metric} differs across benchmarks")
     if args.verbose is not None:
         metric_column = df.columns[0]  # First column is the metric name
-
+        benchmark_columns = df.columns[1:]  # All other columns are the benchmark names
         # Iterate over each metric in the CSV
         for index, row in df.iterrows():
             metric_name = row[metric_column]  # Get the metric name (from the first column)
@@ -47,23 +48,41 @@ def main():
                 if args.verbose is True:
                     print(f"[INFO] {metric_name} differs")
                     result_df = pd.DataFrame({
+                    "Metric": [metric_name] * len(benchmark_columns),  # Repeat the metric name for all benchmarks
                     "Benchmark": benchmark_columns,  # Column names (benchmarks)
                     "Value": benchmark_values.values  # Corresponding values for the metric
+                    
                     })
-                    print(result_df.to_string(index=True)) 
+                    differing_metrics.append(result_df)
                 else:
                     # if percentage is passed, check if min and max value differ by at least args.verbose %
                     max_value = benchmark_values.max()
                     min_value = benchmark_values.min()
-                    percentage_diff = ((max_value - min_value) / min_value) * 100  # Calculate percentage difference
+                    
+                    #get percentage difference (first check if 0 to avoid div by 0)
+                    percentage_diff = ((max_value - min_value) / min_value) * 100 if min_value != 0 else max_value - min_value  # Calculate percentage difference
                     if percentage_diff >= args.verbose:
                         print(f"[INFO] {metric_name} differs")
                         result_df = pd.DataFrame({
+                        "Metric": [metric_name] * len(benchmark_columns),  # Repeat the metric name for all benchmarks
                         "Benchmark": benchmark_columns,  # Column names (benchmarks)
                         "Value": benchmark_values.values  # Corresponding values for the metric
                         })
-                        print(result_df.to_string(index=True))
+                        differing_metrics.append(result_df)
+                        #result_df = pd.DataFrame({
+                        #"Benchmark": benchmark_columns,  # Column names (benchmarks)
+                        #"Value": benchmark_values.values  # Corresponding values for the metric
+                        #})
+                        #print(result_df.to_string(index=True))
 
+    if differing_metrics:
+        final_df = pd.concat(differing_metrics)
+        pivot_df = final_df.pivot(index="Metric", columns="Benchmark", values="Value")
 
+        # Print the pivoted DataFrame as a table
+        print("Metrics differ in " + test)
+        print(pivot_df)
+        #print("\nAll metrics that differ across benchmarks:")
+        #print(final_df.to_string(index=False))
 if  __name__ == "__main__":
     main()

@@ -20,6 +20,7 @@ else ifeq ($(CC), clang++)
 else	
     $(info Unknown compiler $(CC), no automatic flags are added, trying to compile with manual flags from CXXFLAGS_COMMON)
 endif
+.PHONY: test_threads_default test_threads_explicit
 
 test_threads_default: threads_default.cpp
 		$(CC) $(CXXFLAGS_COMPILER) $(CXXFLAGS_COMMON) $(CXXFLAGS_EXTRA) -O3 $< -o $@
@@ -27,6 +28,10 @@ test_threads_default: threads_default.cpp
 
 test_threads_explicit: threads_explicit.cpp
 		$(CC) $(CXXFLAGS_EXTRA) $(CXXFLAGS_COMPILER) $(CXXFLAGS_COMMON) -O3 $< -o $@
+
+test_threads_explicit_with_limit: threads_explicit_with_limit.cpp
+		$(CC) $(CXXFLAGS_EXTRA) $(CXXFLAGS_COMPILER) $(CXXFLAGS_COMMON) -O3 $< -o $@
+
 
 clean:
 	rm -f test_threads_default test_threads_explicit test_threads_explicit_with_limit test_threads_explicit_as_const

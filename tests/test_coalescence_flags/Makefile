@@ -21,7 +21,7 @@ else
     $(error Unsupported compiler: $(CC))
 endif
 
-test_coalesced: test_coalesced.cpp
+test_coalesced: test_coalesced_short.cpp
 		$(CC) $(CXXFLAGS_COMPILER) $(CXXFLAGS_COMMON) $(CXXFLAGS_EXTRA) $< -o $@
 
 

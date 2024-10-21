@@ -69,17 +69,6 @@ void register_spill(double *data, int N) {
         for (int j = 0; j < 1000; j++) {
             sum += temp[j] + additional_vars[j];
         }	
-	/*
-	double temp[100];
-        for(int j = 0; j < 100; j++){
-        // Force register spilling by using local arrays
-        	temp[j] = data[j] * j;
-	}
-	double sum = 0; 
-	for(int j = 0; j < 100; j++){
-		sum += temp[j];
-	}
-	*/
         data[i] = sum;
     }
 }

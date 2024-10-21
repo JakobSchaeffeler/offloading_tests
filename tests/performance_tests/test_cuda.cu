@@ -32,11 +32,11 @@ __global__ void stencil_1d(double *input, double *output, int N) {
         output[i] = (input[i-1] + input[i] + input[i+1]) / 3.0;
     }
 }
-/*
+
 __global__ void atomic_add(double *counter, int N) {
         atomicAdd(counter, (double)1.0);
 }
-*/
+
 
 __global__ void coalesced_access(short *data, int N) {
     int idx = blockIdx.x * blockDim.x + threadIdx.x;
@@ -117,7 +117,7 @@ int main(){
 
 	cudaMemcpy(da, ha, SIZE*sizeof(double), cudaMemcpyHostToDevice);
 	cudaMemcpy(db, hb, SIZE*sizeof(double), cudaMemcpyHostToDevice);
-	for(int i = 0; i < 100; i++){
+	for(int i = 0; i < 1; i++){
 		
 		vec_add<<<SIZE/TBSIZE, TBSIZE>>>(da, db, dc);
 

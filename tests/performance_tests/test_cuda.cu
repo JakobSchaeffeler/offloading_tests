@@ -1,7 +1,7 @@
 #include <cstdlib>
 #include <iostream>
 
-#define SIZE 29360128
+#define SIZE 33554432
 #define ALIGNMENT (2*1024*1024)
 #define TBSIZE 1024
 
@@ -123,9 +123,9 @@ int main(){
 
 		stencil_1d<<<SIZE/TBSIZE, TBSIZE>>>(da, dc, SIZE);
 		
-		//atomic_add<<<SIZE/TBSIZE, TBSIZE>>>(dc, SIZE);
+		atomic_add<<<SIZE/TBSIZE, TBSIZE>>>(dc, SIZE);
 		
-		coalesced_access<<<SIZE/TBSIZE, TBSIZE>>>((short*)dc, SIZE*4);
+		coalesced_access<<<SIZE*4/TBSIZE, TBSIZE>>>((short*)dc, SIZE*4);
 		
 		uncoal_access<<<SIZE/TBSIZE, TBSIZE>>>((short*)dc, SIZE*4, 16);
 

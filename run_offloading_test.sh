@@ -10,12 +10,13 @@ COMPILER=$1
 ARCH=$2
 
 if [ ! -z "$3" ]; then
-  FLAGS="$3"
+  FLAGS=$3
 fi
 
 
-./compile.sh $COMPILER $ARCH $FLAGS
+./compile.sh $COMPILER $ARCH "$FLAGS"
 
 ./run.sh
+echo "Correctness tests done"
 
 ./run_profiles.sh $ARCH

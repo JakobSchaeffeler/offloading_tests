@@ -2,7 +2,7 @@
 #include <cstdlib> 
 #include <iostream>
 
-#define SIZE 29360128
+#define SIZE 33554432
 #define ALIGNMENT (2*1024*1024)
 
 void vec_add(double *a, double *b, double *c){
@@ -32,25 +32,25 @@ void stencil_1d(double *input, double *output, int N){
 	}
 }
 
-void atomic_add(double *counter, int N) {
+void atomic_add(double *counter, double *data, int N) {
 #pragma omp target teams distribute parallel for
 	for (int i = 0; i < N; i++) {
 	    #pragma omp atomic
-	    counter++;
+	    counter[0]+= data[i];
 	}
 }
 
 void coalesced_access(short *data, int N){
 #pragma omp target teams distribute parallel for
 	for (int i = 0; i < N; i++) {
-	    data[i] += 1.0;  // Coalesced access
+	    data[i] -= 1; 
 	}
 }
 
 void uncoal_access(short *data, int N, int stride){
 #pragma omp target teams distribute parallel for
 	for (int i = 0; i < N; i += stride) {
-	    data[i] += 1.0;  // Uncoalesced access
+	    data[i] -= 1;  // Uncoalesced access
 	}
 }
 
@@ -122,25 +122,26 @@ int main(){
   {
     a[i] = i;
     b[i] = i+1;
+    c[i] = 0;
   }
   // alloc on device
 #pragma omp target enter data map(to: a[0:SIZE], b[0:SIZE])
-#pragma omp target enter data map(alloc:c[0:SIZE])
+#pragma omp target enter data map(to:c[0:SIZE])
 
-  for(int i = 0; i < 10; i++){
+  for(int i = 0; i < 1; i++){
 	  vec_add(a,b,c);
 	  stencil_1d(a,c,SIZE);
-	  atomic_add(c,SIZE);
+	  atomic_add(c,b,SIZE/1024);
 	  coalesced_access((short*)c, SIZE*4);
 	  uncoal_access((short*)c, SIZE*4, 16);
-	  //register_spill(c, SIZE);
 	  branch_divergence(c, SIZE);
 	  uniform_branch(c, SIZE);
 	  multiple_access_not_cached(c, SIZE);
   }
-#pragma omp target update from(c[0:SIZE])
-#pragma omp target exit data map(release: a[0:SIZE], b[0:SIZE], c[0:SIZE])
-  printf("c0: %f", c[0] );
+  //register_spill(c, SIZE);
 
+#pragma omp target update from(c[0:SIZE])
+  printf("c0: %f", c[0]);
+#pragma omp target exit data map(release: a[0:SIZE], b[0:SIZE], c[0:SIZE])
 
 }

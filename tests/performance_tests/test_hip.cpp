@@ -2,7 +2,7 @@
 #include <iostream>
 #include <hip/hip_runtime.h>
 
-#define SIZE 29360128
+#define SIZE 33554432
 #define ALIGNMENT (2*1024*1024)
 #define TBSIZE 1024
 
@@ -13,7 +13,6 @@ __global__ void vec_add(double *a, double *b, double *c) {
         c[idx] = a[idx] + b[idx];
     }
 }
-
 
 __global__ void mat_mul(double *A, double *B, double *C, int N) {
     int row = blockIdx.y * blockDim.y + threadIdx.y;
@@ -33,23 +32,26 @@ __global__ void stencil_1d(double *input, double *output, int N) {
         output[i] = (input[i-1] + input[i] + input[i+1]) / 3.0;
     }
 }
-/*
-__global__ void atomic_add(double *counter, int N) {
-        atomicAdd(counter, (double)1.0);
+
+__global__ void atomic_add(double *counter, double *data, int N) {
+    	int idx = hipBlockIdx_x * hipBlockDim_x + hipThreadIdx_x;
+    	if (idx < N) {
+		atomicAdd(counter, data[idx]);		
+	}
 }
-*/
+
 
 __global__ void coalesced_access(short *data, int N) {
     int idx = hipBlockIdx_x * hipBlockDim_x + hipThreadIdx_x;
     if (idx < N) {
-        data[idx] += 1.0;  
+        data[idx] -= 1;  
     }
 }
 
 __global__ void uncoal_access(short *data, int N, int stride) {
     int idx = hipBlockIdx_x * hipBlockDim_x + hipThreadIdx_x;
     if (idx * stride < N) {
-        data[idx * stride] += 1.0;  
+        data[idx * stride] -= 1;  
     }
 }
 
@@ -116,24 +118,25 @@ int main(){
 	for(int i = 0; i < SIZE; i++){
 		ha[i] = i;
 		hb[i] = i+1;
+		hc[i] = 0;
 	}
 
 	hipMemcpy(da, ha, SIZE * sizeof(double), hipMemcpyHostToDevice);
     	hipMemcpy(db, hb, SIZE * sizeof(double), hipMemcpyHostToDevice);
-  	
-	for(int i = 0; i < 10; i++){
+  	hipMemcpy(dc, hc, SIZE * sizeof(double), hipMemcpyHostToDevice);
+
+	for(int i = 0; i < 1; i++){
+		
 		
 		hipLaunchKernelGGL(vec_add, dim3(SIZE / TBSIZE), dim3(TBSIZE), 0, 0, da, db, dc);
 		
 		hipLaunchKernelGGL(stencil_1d, dim3(SIZE / TBSIZE), dim3(TBSIZE), 0, 0, da, dc, SIZE);
 		
-		// hipLaunchKernelGGL(atomic_add, dim3(SIZE / TBSIZE), dim3(TBSIZE), 0, 0, dc, SIZE);
+		hipLaunchKernelGGL(atomic_add, dim3(SIZE / TBSIZE), dim3(TBSIZE), 0, 0, dc, db, SIZE/1024);
 
-		hipLaunchKernelGGL(coalesced_access, dim3(SIZE / TBSIZE), dim3(TBSIZE), 0, 0, (short*)dc, SIZE * 4);
-		
+		hipLaunchKernelGGL(coalesced_access, dim3(SIZE*4 / TBSIZE), dim3(TBSIZE), 0, 0, (short*)dc, SIZE * 4);
+	
 		hipLaunchKernelGGL(uncoal_access, dim3(SIZE / TBSIZE), dim3(TBSIZE), 0, 0, (short*)dc, SIZE * 4, 16);
-
-		//hipLaunchKernelGGL(register_spill, dim3(SIZE / TBSIZE), dim3(TBSIZE), 0, 0, dc, SIZE);
 
 		hipLaunchKernelGGL(branch_divergence, dim3(SIZE / TBSIZE), dim3(TBSIZE), 0, 0, dc, SIZE);
 
@@ -141,6 +144,7 @@ int main(){
 
 		hipLaunchKernelGGL(multiple_access_not_cached, dim3(SIZE / TBSIZE), dim3(TBSIZE), 0, 0, dc, SIZE);
 	}
+	//hipLaunchKernelGGL(register_spill, dim3(SIZE / TBSIZE), dim3(TBSIZE), 0, 0, dc, SIZE);
 	// Copy results back to host
 	hipMemcpy(hc, dc, SIZE * sizeof(double), hipMemcpyDeviceToHost);
 

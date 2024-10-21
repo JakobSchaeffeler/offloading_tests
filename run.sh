@@ -3,6 +3,8 @@
 # Base directory containing subdirectories with executables
 BASE_DIR="tests"
 
+echo "Running correctness tests"
+
 # Iterate over all subdirectories in the base directory
 for dir in "$BASE_DIR"/*; do
   if [ -d "$dir" ]; then
@@ -27,11 +29,12 @@ for dir in "$BASE_DIR"/*; do
 	if $first_exec; then
 		OUTPUT_CHECK="$OUTPUT"
 		first_exec=false
+		FIRST_NAME=$exec
 	fi
 	if [ "$OUTPUT" != "$OUTPUT_CHECK" ]; then
             echo "[FAILED] Output mismatch for executables in $dir"
-            echo "Current Output: $OUTPUT"
-            echo "First Output: $OUTPUT_CHECK"
+            echo "Current Output of $exec: $OUTPUT"
+            echo "Output of $FIRST_NAME: $OUTPUT_CHECK"
         fi
 
       fi

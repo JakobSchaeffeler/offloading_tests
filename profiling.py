@@ -71,8 +71,13 @@ def profile_amd(executable, kernel_name, no_rerun):
     metrics["Global Memory Read Instructions per wave"] = "10.3.1"
     metrics["Global Memory Write Instructions per wave"] = "10.3.2"
     metrics["Coalesced Instructions (% of peak)"] = "16.1.3"
-
+    metrics["Atomic Operations"] = "15.1.8"
     result_dict = profile_omni(executable,kernel_name, metrics, no_rerun)
+    waves = result_dict["Grid Size"]/32
+    keys = list(result_dict.keys())
+    for r in keys:
+        if "per wave" in r:
+            result_dict[r.replace(" per wave", "")] = result_dict[r] * waves
     return result_dict
 
 
@@ -279,14 +284,15 @@ def main():
     
     if args.metrics:
         for metric in args.metrics:
-            vals = []
-            for r in results:
-                vals.append(results[r][metric])
-            if len(vals) > 0 and min(vals) != max(vals):
-                print("[Error] Metric " + metric + " differs in " + args.test_name)
-                stripped_dict = {key.rsplit('/', 1)[-1]: {metric: results[key][metric]} for key, value in results.items()}
-                error_frame = pd.DataFrame(stripped_dict)
-                print(error_frame)
+            if metric in results[list(results.keys())[0]]:
+                vals = []
+                for r in results:
+                    vals.append(results[r][metric])
+                if len(vals) > 0 and min(vals) != max(vals):
+                    print("[Error] Metric " + metric + " differs in " + args.test_name)
+                    stripped_dict = {key.rsplit('/', 1)[-1]: {metric: results[key][metric]} for key, value in results.items()}
+                    error_frame = pd.DataFrame(stripped_dict)
+                    print(error_frame)
 
     # print warnings if values differ by more than the percentage passed in verbose
     pct = 0

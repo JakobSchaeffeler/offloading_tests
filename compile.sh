@@ -11,7 +11,7 @@ ARCH=$2
 FLAGS=""
 
 if [ ! -z "$3" ]; then
-  FLAGS="$3"
+  FLAGS=$3
 fi
 
 
@@ -29,8 +29,7 @@ for dir in "$FULL_PATH"/*; do
     if [ -f "compile.sh" ] && [ -x "compile.sh" ]; then
       # Run compile.sh and capture output
       echo "Compiling $dir"
-      OUTPUT=$(./compile.sh $COMPILER $ARCH $FLAGS 2>&1)
-      
+      OUTPUT=$(./compile.sh $COMPILER $ARCH "$FLAGS" 2>&1)
       # If compilation fails, print an error and the output
       if [ $? -ne 0 ]; then
         echo "Compilation failed in $dir"

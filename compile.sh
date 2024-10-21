@@ -1,13 +1,18 @@
 #!/bin/bash
 
-if [ "$#" -ne 2 ]; then
-    echo "Usage: $0 <compiler> <architecture>"
+if [ "$#" -lt 2 ] || [ "$#" -gt 3 ]; then
+    echo "Usage: $0 <compiler> <architecture> [optional offloading flags]"
     exit 1
 fi
 
 # Assign arguments to variables
 COMPILER=$1
 ARCH=$2
+FLAGS=""
+
+if [ ! -z "$3" ]; then
+  FLAGS="$3"
+fi
 
 
 # Base directory containing subdirectories with C++ files
@@ -23,9 +28,8 @@ for dir in "$FULL_PATH"/*; do
     # Check if compile.sh exists and is executable
     if [ -f "compile.sh" ] && [ -x "compile.sh" ]; then
       # Run compile.sh and capture output
-      echo "executing ./compile.sh $COMPILER $ARCH 2>&1"
-      echo ".. in $dir"
-      OUTPUT=$(./compile.sh $COMPILER $ARCH 2>&1)
+      echo "Compiling $dir"
+      OUTPUT=$(./compile.sh $COMPILER $ARCH $FLAGS 2>&1)
       
       # If compilation fails, print an error and the output
       if [ $? -ne 0 ]; then

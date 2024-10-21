@@ -1,17 +1,22 @@
 #!/bin/bash
 
-if [ "$#" -ne 2 ]; then
-    echo "Usage: $0 <compiler> <architecture>"
+if [ "$#" -lt 2 ] || [ "$#" -gt 3 ]; then
+    echo "Usage: $0 <compiler> <architecture> [optional offloading flags]"
     exit 1
 fi
 
 # Assign arguments to variables
 COMPILER=$1
 ARCH=$2
+FLAGS=""
+
+if [ ! -z "$3" ]; then
+  FLAGS="$3"
+fi
 
 if [[ "$ARCH" == *"sm"* ]]; then 
     # build default benchmark
-    make test_reduction_gpu CC=$COMPILER GPU_ARCH=$ARCH
+    make test_reduction_gpu CC=$COMPILER GPU_ARCH=$ARCH CXXFLAGS_COMPILER=$FLAGS
 
     # get team/thread config from default benchmark
     ncu ./test_reduction_gpu > ncu_out.txt
@@ -28,7 +33,7 @@ if [[ "$ARCH" == *"sm"* ]]; then
     GRID_SIZE="${GRID_SIZE//,/}"
 
     # build all other benchmarks with team/thread config
-    make test_reduction_cpu CC=$COMPILER GPU_ARCH=$ARCH CXXFLAGS_EXTRA="-DNUM_THREADS=$BLOCK_SIZE -DNUM_TEAMS=$GRID_SIZE" CXXFLAGS_COMMON="-O3"
+    make test_reduction_cpu CC=$COMPILER GPU_ARCH=$ARCH CXXFLAGS_COMPILER=$FLAGS CXXFLAGS_EXTRA="-DNUM_THREADS=$BLOCK_SIZE -DNUM_TEAMS=$GRID_SIZE" CXXFLAGS_COMMON="-O3"
 
 fi
 
@@ -36,7 +41,7 @@ fi
 if [[ "$ARCH" == *"gfx"* ]]; then 
 
     # first compiler reduction gpu and get thread/team config
-    make test_reduction_gpu CC=$COMPILER GPU_ARCH=$ARCH
+    make test_reduction_gpu CC=$COMPILER GPU_ARCH=$ARCH CXXFLAGS_COMPILER=$FLAGS
 
     rocprof ./test_reduction_gpu
 
@@ -67,9 +72,6 @@ if [[ "$ARCH" == *"gfx"* ]]; then
     
     #build reduction on cpu with same config
 
-    echo "make test_reduction_cpu CC=$COMPILER GPU_ARCH=$ARCH CXXFLAGS_EXTRA=\"-DNUM_THREADS=$NUM_THREADS -DNUM_TEAMS=$NUM_TEAMS\""
-
-
-    make test_reduction_cpu CC=$COMPILER GPU_ARCH=$ARCH CXXFLAGS_EXTRA="-DNUM_THREADS=$NUM_THREADS -DNUM_TEAMS=$NUM_TEAMS"
+    make test_reduction_cpu CC=$COMPILER GPU_ARCH=$ARCH CXXFLAGS_COMPILER=$FLAGS CXXFLAGS_EXTRA="-DNUM_THREADS=$NUM_THREADS -DNUM_TEAMS=$NUM_TEAMS"
 
 fi

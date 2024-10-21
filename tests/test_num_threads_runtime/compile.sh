@@ -11,15 +11,15 @@ ARCH=$2
 FLAGS=""
 
 if [ ! -z "$3" ]; then
-  FLAGS="$3"
+  FLAGS=$3
 fi
 
 
 if [[ "$ARCH" == *"sm"* ]]; then 
     # build default benchmark
-    make test_threads_default CC=$COMPILER GPU_ARCH=$ARCH CXXFLAGS_COMPILER=$FLAGS
+    make test_threads_default CC=$COMPILER GPU_ARCH=$ARCH CXXFLAGS_COMPILER="$FLAGS"
 
-    make test_threads_explicit CC=$COMPILER GPU_ARCH=$ARCH  CXXFLAGS_COMPILER=$FLAGS
+    make test_threads_explicit CC=$COMPILER GPU_ARCH=$ARCH  CXXFLAGS_COMPILER="$FLAGS"
     
     ncu ./test_threads_default > ncu_out.txt
 
@@ -40,7 +40,7 @@ fi
 if [[ "$ARCH" == *"gfx"* ]]; then 
 
     # first compiler reduction gpu and get thread/team config
-    make test_threads_default CC=$COMPILER GPU_ARCH=$ARCH CXXFLAGS_COMPILER=$FLAGS
+    make test_threads_default CC=$COMPILER GPU_ARCH=$ARCH CXXFLAGS_COMPILER="$FLAGS"
 
     rocprof ./test_threads_default > /tmp/blubb
 
@@ -70,6 +70,6 @@ if [[ "$ARCH" == *"gfx"* ]]; then
     
     #build reduction on cpu with same config
     echo "$NUM_TEAMS $NUM_THREADS $NUM_THREADS" > args
-    make test_threads_explicit_with_limit CC=$COMPILER GPU_ARCH=$ARCH CXXFLAGS_COMPILER=$FLAGS
-    make test_threads_explicit CC=$COMPILER GPU_ARCH=$ARCH CXXFLAGS_COMPILER=$FLAGS
+    make test_threads_explicit_with_limit CC=$COMPILER GPU_ARCH=$ARCH CXXFLAGS_COMPILER="$FLAGS"
+    make test_threads_explicit CC=$COMPILER GPU_ARCH=$ARCH CXXFLAGS_COMPILER="$FLAGS"
 fi

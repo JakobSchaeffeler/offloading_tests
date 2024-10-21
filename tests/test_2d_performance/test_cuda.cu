@@ -52,12 +52,17 @@ int main(){
 	cudaMemcpy(dA, hA, SIZE*SIZE*sizeof(double), cudaMemcpyHostToDevice);
 	cudaMemcpy(dB, hB, SIZE*SIZE*sizeof(double), cudaMemcpyHostToDevice);
 	for(int i = 0; i < 1; i++){
-        stencil2d<<<SIZE/TBSIZE, TBSIZE>>>(dA, dB,SIZE);
-		mat_mul<<<SIZE/TBSIZE, TBSIZE>>>(dA, dB, dC, SIZE);
+		dim3 threadsPerBlock(32,32);
+		dim3 numBlocks((N + threadsPerBlock.x - 1) / threadsPerBlock.x,(N + threadsPerBlock.y - 1) / threadsPerBlock.y);
+        	stencil2d<<<numBlocks, threadsPerBlock>>>(dA, dB,SIZE);
+		dim3 threadsPerBlock(32,32);
+    		dim3 numBlocks((N + TBSIZE - 1) / TBSIZE, (N + TBSIZE - 1) / TBSIZE);
+		mat_mul<<<numBlocks, threadsPerBlock>>>(dA, dB, dC, SIZE);
 	}
 	cudaMemcpy(hC, dC, SIZE*sizeof(double), cudaMemcpyDeviceToHost);
 
-	printf("c0: %f", hC[0] );
+	printf("c0: %f\n", hC[0] );
+        printf("c_last %f\n", hC[SIZE*SIZE-1]);
 
 	free(hA);
 	free(hB);

@@ -2,7 +2,7 @@
 #include <iostream>
 #include <hip/hip_runtime.h>
 
-#define SIZE 8192
+#define SIZE 2048 //8192
 #define ALIGNMENT (2*1024*1024)
 #define TBSIZE 1024
 #define INDEX(x, y, N) ((x) + (y) * (N))
@@ -35,13 +35,13 @@ __global__ void mat_mul(double *A, double *B, double *C, int N) {
 
 int main(){
 	double* hA = (double*) malloc(SIZE*SIZE*sizeof(double));
-    double* hB = (double*) malloc(SIZE*SIZE*sizeof(double));
+    	double* hB = (double*) malloc(SIZE*SIZE*sizeof(double));
 	double* hC = (double*) malloc(SIZE*SIZE*sizeof(double));
 	    
 	double *dA, *dB, *dC;
    	hipMalloc(&dA, SIZE*SIZE * sizeof(double));
    	hipMalloc(&dB, SIZE*SIZE * sizeof(double));
-    hipMalloc(&dC, SIZE*SIZE * sizeof(double));	
+    	hipMalloc(&dC, SIZE*SIZE * sizeof(double));	
 	
     for (int i = 0; i < SIZE; i++){
 	    for (int j = 0; j < SIZE; j++){
@@ -55,17 +55,20 @@ int main(){
   	hipMemcpy(dC, hC, SIZE*SIZE * sizeof(double), hipMemcpyHostToDevice);
 
 	for(int i = 0; i < 1; i++){
-		hipLaunchKernelGGL(stencil2d, dim3(SIZE / TBSIZE), dim3(TBSIZE), 0, 0, dA, dB, SIZE);
+		dim3 threadsPerBlock(32, 32);
+		dim3 numBlocks((SIZE + threadsPerBlock.x - 1) / threadsPerBlock.x,(SIZE + threadsPerBlock.y - 1) / threadsPerBlock.y);
+
+		hipLaunchKernelGGL(stencil2d, numBlocks, threadsPerBlock, 0, 0, dA, dB, SIZE);
 		
-		hipLaunchKernelGGL(mat_mul, dim3(SIZE / TBSIZE), dim3(TBSIZE), 0, 0, dA, dB, dC, SIZE);
+		hipLaunchKernelGGL(mat_mul, numBlocks, threadsPerBlock, 0, 0, dA, dB, dC, SIZE);
 		
 	}
 
 	hipMemcpy(hC, dC, SIZE * SIZE * sizeof(double), hipMemcpyDeviceToHost);
 
 	// Print the first result
-	printf("c0: %f", hC[0]);
-
+	printf("c0: %f\n", hC[0]);
+	printf("c_last %f\n", hC[SIZE*SIZE-1]);
 	// Free memory
 	free(hA);
 	free(hB);

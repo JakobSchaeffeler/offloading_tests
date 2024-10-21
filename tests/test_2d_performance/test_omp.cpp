@@ -2,13 +2,13 @@
 #include <cstdlib> 
 #include <iostream>
 
-#define SIZE 8192
+#define SIZE 2048 //8192
 #define ALIGNMENT (2*1024*1024)
 
 #define INDEX(x, y, N) ((x) + (y) * (N))
 
 void stencil2d(double *in, double *out, int N) {
-    #pragma omp parallel for collapse(2)
+    #pragma omp target teams distribute parallel for collapse(2)
     for (int y = 1; y < N-1; y++) {
         for (int x = 1; x < N-1; x++) {
             out[INDEX(x, y, N)] = (in[INDEX(x-1, y, N)] +
@@ -48,15 +48,17 @@ int main(){
   	}
   }
   // alloc on device
-#pragma omp target enter data map(to: A[0:SIZE], B[0:SIZE], C[0:SIZE])
+#pragma omp target enter data map(to: A[0:SIZE*SIZE], B[0:SIZE*SIZE], C[0:SIZE*SIZE])
 
   for(int i = 0; i < 1; i++){
 	  stencil2d(A,B,SIZE);
 	  mat_mul(A,B,C, SIZE);
   }
 
-#pragma omp target update from(C[0:SIZE])
+#pragma omp target update from(C[0:SIZE*SIZE])
   printf("c0: %f", C[0]);
-#pragma omp target exit data map(release: A[0:SIZE], B[0:SIZE], C[0:SIZE])
+  printf("c_last %f\n", C[SIZE*SIZE-1]);
+
+#pragma omp target exit data map(release: A[0:SIZE*SIZE], B[0:SIZE*SIZE], C[0:SIZE*SIZE])
 
 }

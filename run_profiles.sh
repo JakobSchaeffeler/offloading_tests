@@ -21,10 +21,6 @@ fi
 
 test_names=( "stencil_2d" "mat_mul")
 
-python profiling.py --verbose 5 --gpu $GPU tests/test_2d_performance/$performance_exec "stencil2d" tests/test_2d_performance/test_omp "stencil2d" --test_name "stencil2d"
-
-python profiling.py --verbose 5 --no_rerun --gpu $GPU tests/test_2d_performance/$performance_exec "mat_mul" tests/test_2d_performance/test_omp "mat_mul" --test_name "mat_mul"
-
 
 python profiling.py --metrics "#Threads" "#Teams" "Grid Size" --verbose 5 --gpu $GPU tests/test_num_threads_performance/test_threads_default "omp_default" tests/test_num_threads_performance/test_threads_explicit "omp_threads_explicit" tests/test_num_threads_performance/test_threads_explicit_with_limit "omp_threads_explicit_limit" tests/test_num_threads_performance/test_threads_explicit_as_const "omp_threads_explicit_const" --test_name "set_threads_at_compilation"
 
@@ -35,7 +31,7 @@ python profiling.py --metrics "#Threads" "#Teams" "Grid Size" --verbose 5 --gpu 
 
 
 # Assign arguments to variables
-test_names=( "stencil_1d" "atomic_add" "coalesced_access" "uncoal_access" "multiple_access_not_cached" "register_spill" "uniform_branch" "branch_divergence")
+test_names=( "stencil_1d" "atomic_add" "coalesced_access" "uncoal_access" "multiple_access_not_cached" "uniform_branch" "branch_divergence")
 
 python profiling.py --verbose 5 --gpu $GPU tests/performance_tests/$performance_exec "vec_add" tests/performance_tests/test_omp "vec_add" --test_name "vec_add"
 # Base command template
@@ -46,5 +42,9 @@ do
 done
 
 #set_threads_at_compilation_vs_runtime
+
+python profiling.py --verbose 5 --gpu $GPU tests/test_2d_performance/$performance_exec "stencil2d" tests/test_2d_performance/test_omp "stencil2d" --test_name "stencil2d"
+
+python profiling.py --verbose 5 --no_rerun --gpu $GPU tests/test_2d_performance/$performance_exec "mat_mul" tests/test_2d_performance/test_omp "mat_mul" --test_name "mat_mul"
 
 

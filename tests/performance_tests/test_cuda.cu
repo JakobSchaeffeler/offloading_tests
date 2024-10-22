@@ -33,8 +33,12 @@ __global__ void stencil_1d(double *input, double *output, int N) {
     }
 }
 
-__global__ void atomic_add(double *counter, int N) {
-        atomicAdd(counter, (double)1.0);
+__global__ void atomic_add(float* counter, float *data, int N) {
+        int idx = blockIdx.x * blockDim.x + threadIdx.x;;
+        if (idx < N) {
+                atomicAdd((float*)counter, (float)data[idx]);
+        }
+
 }
 
 
@@ -123,7 +127,7 @@ int main(){
 
 		stencil_1d<<<SIZE/TBSIZE, TBSIZE>>>(da, dc, SIZE);
 		
-		atomic_add<<<SIZE/TBSIZE, TBSIZE>>>(dc, SIZE);
+		atomic_add<<<SIZE/TBSIZE, TBSIZE>>>((float*)dc, (float*)db, SIZE/1024);
 		
 		coalesced_access<<<SIZE*4/TBSIZE, TBSIZE>>>((short*)dc, SIZE*4);
 		

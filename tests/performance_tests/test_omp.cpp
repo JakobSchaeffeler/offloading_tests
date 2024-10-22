@@ -32,7 +32,7 @@ void stencil_1d(double *input, double *output, int N){
 	}
 }
 
-void atomic_add(double *counter, double *data, int N) {
+void atomic_add(float *counter, float *data, int N) {
 #pragma omp target teams distribute parallel for
 	for (int i = 0; i < N; i++) {
 	    #pragma omp atomic
@@ -120,7 +120,7 @@ int main(){
   for(int i = 0; i < 1; i++){
 	  vec_add(a,b,c);
 	  stencil_1d(a,c,SIZE);
-	  atomic_add(c,b,SIZE/1024);
+	  atomic_add((float*)c,(float*)b,SIZE/1024);
 	  coalesced_access((short*)c, SIZE*4);
 	  uncoal_access((short*)c, SIZE*4, 16);
 	  branch_divergence(c, SIZE);

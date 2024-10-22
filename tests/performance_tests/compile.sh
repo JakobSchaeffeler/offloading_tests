@@ -20,7 +20,7 @@ if [[ "$ARCH" == *"sm"* ]]; then
     # build default benchmark
     make test_omp CC=$COMPILER GPU_ARCH=$ARCH CXXFLAGS_COMPILER_OMP="$FLAGS"
     
-    make test_cuda CC=nvcc GPU_ARCH=$ARCH
+    make test_cuda CC=nvcc GPU_ARCH=$ARCH CXXFLAGS_EXTRA="-arch=$FLAGS"
 fi
 
 

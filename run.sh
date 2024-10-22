@@ -19,7 +19,7 @@ for dir in "$BASE_DIR"/*; do
 	fi
 	
 	# Execute the file and capture the output
-        OUTPUT=$("./$exec" $args 2>&1)
+        OUTPUT=$("./$exec" $args 2>/dev/null)
         # Check if execution was successful
         if [ $? -ne 0 ]; then
           echo "[FAILED] Execution failed for: $exec"

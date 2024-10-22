@@ -20,6 +20,7 @@ if [[ "$ARCH" == *"sm"* ]]; then
     make test_threads_default CC=$COMPILER GPU_ARCH=$ARCH CXXFLAGS_COMPILER="$FLAGS"
 
     make test_threads_explicit CC=$COMPILER GPU_ARCH=$ARCH  CXXFLAGS_COMPILER="$FLAGS"
+    make test_threads_explicit_with_limit CC=$COMPILER GPU_ARCH=$ARCH CXXFLAGS_COMPILER="$FLAGS"
     
     ncu ./test_threads_default > ncu_out.txt
 

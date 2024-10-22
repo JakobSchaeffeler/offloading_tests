@@ -21,7 +21,7 @@ if [[ "$ARCH" == *"sm"* ]]; then
     # get team/thread config from default benchmark
     ncu ./test_reduction_gpu > ncu_out.txt
 
-    sed -n '/dot/,$p' ncu_out.txt > ncu_out_kernel.txt
+    sed -n '/reduction_gpu/,$p' ncu_out.txt > ncu_out_kernel.txt
 
     BLOCK_LINE=$(grep -m 1 "Block Size" "ncu_out_kernel.txt")
     BLOCK_SIZE=$(echo $BLOCK_LINE | awk '{print $NF}')

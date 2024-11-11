@@ -20,10 +20,11 @@ for dir in "$BASE_DIR"/*; do
 	
 	# Execute the file and capture the output
         OUTPUT=$("./$exec" $args 2>/dev/null)
-        # Check if execution was successful
+	# Check if execution was successful
         if [ $? -ne 0 ]; then
+          OUTPUTERR=$("./$exec" $args 2>&1)
           echo "[FAILED] Execution failed for: $exec"
-	  echo "$OUTPUT"
+	  echo "$OUTPUTERR"
         fi
 	OUTPUT=$(echo "$OUTPUT" | tr -dc '0-9')
 	if $first_exec; then

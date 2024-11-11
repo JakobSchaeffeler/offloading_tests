@@ -33,7 +33,7 @@ __global__ void stencil_1d(double *input, double *output, int N) {
     }
 }
 
-__global__ void atomic_add(double *counter, double *data, int N) {
+__global__ void atomic_add(float *counter, float *data, int N) {
     	int idx = hipBlockIdx_x * hipBlockDim_x + hipThreadIdx_x;
     	if (idx < N) {
 		atomicAdd(counter, data[idx]);		
@@ -132,7 +132,7 @@ int main(){
 		
 		hipLaunchKernelGGL(stencil_1d, dim3(SIZE / TBSIZE), dim3(TBSIZE), 0, 0, da, dc, SIZE);
 		
-		hipLaunchKernelGGL(atomic_add, dim3(SIZE / TBSIZE), dim3(TBSIZE), 0, 0, dc, db, SIZE/1024);
+		hipLaunchKernelGGL(atomic_add, dim3(SIZE / TBSIZE), dim3(TBSIZE), 0, 0, (float*)dc, (float*)db, SIZE/1024);
 
 		hipLaunchKernelGGL(coalesced_access, dim3(SIZE*4 / TBSIZE), dim3(TBSIZE), 0, 0, (short*)dc, SIZE * 4);
 	

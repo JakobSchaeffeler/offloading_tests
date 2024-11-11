@@ -2,7 +2,7 @@
 #include <cstdlib> 
 #include <iostream>
 
-#define SIZE 2048 //8192
+#define SIZE 2048
 #define ALIGNMENT (2*1024*1024)
 
 #define INDEX(x, y, N) ((x) + (y) * (N))
@@ -56,8 +56,8 @@ int main(){
   }
 
 #pragma omp target update from(C[0:SIZE*SIZE])
-  printf("c0: %f", C[0]);
-  printf("c_last %f\n", C[SIZE*SIZE-1]);
+  printf("c0: %f\n", C[SIZE+1] );
+  printf("c_last %f\n", C[SIZE*(SIZE-1) + SIZE-1]);
 
 #pragma omp target exit data map(release: A[0:SIZE*SIZE], B[0:SIZE*SIZE], C[0:SIZE*SIZE])
 

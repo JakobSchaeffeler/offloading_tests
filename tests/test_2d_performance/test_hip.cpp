@@ -2,7 +2,7 @@
 #include <iostream>
 #include <hip/hip_runtime.h>
 
-#define SIZE 2048 //8192
+#define SIZE 8192
 #define ALIGNMENT (2*1024*1024)
 #define TBSIZE 1024
 #define INDEX(x, y, N) ((x) + (y) * (N))

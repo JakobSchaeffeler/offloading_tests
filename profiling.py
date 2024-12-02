@@ -197,8 +197,6 @@ def profile_omni(executable, kernel_name, metrics, no_rerun):
         metric_dict = {}
         metric_dict["Runtime"] = float(get_line_with_substring_linebreak(file, kernel_name).split('│')[4].strip())
     else:
-        # TODO remove, only used for debugging
-        print("storing in:  results/" +kernel_name + "_stats.txt")
         analyze_command = "omniperf analyze -p " + directory +  " >  results/" +kernel_name + "_stats.txt"
         subprocess.run(analyze_command, shell=True, check=True)
 

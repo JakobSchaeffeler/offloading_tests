@@ -2,6 +2,7 @@ import os
 import subprocess
 import argparse
 import re
+import tarfile
 
 def capture_include_and_library_paths():
     # Run `make` in dry-run mode to capture output without compiling
@@ -133,6 +134,18 @@ def main():
         # Clone the repository
         print(f"Cloning repository from {repo_url}...")
         subprocess.run(["git", "clone", repo_url])
+
+    # Untar files in HeCBench
+    for root, dirs, files in os.walk("HeCBench"):
+        for file in files:
+            if file.endswith('.tar.gz'):
+                tar_path = os.path.join(root, file)
+                try:
+                    with tarfile.open(tar_path, 'r:gz') as tar:
+                        tar.extractall(path=root, filter='data')
+
+                except Exception as e: 
+                    print("Failed to extract tar file " + tar_path)
 
     # Check for suffixes in src directory
     suffixes = [ "-sycl", "-omp"]

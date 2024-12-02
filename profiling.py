@@ -256,7 +256,7 @@ def profile_nsys(executable, kernel_name, no_rerun):
         if os.path.isfile("nsys_out.sqlite"):
             os.remove("nsys_out.sqlite")
         try:
-            subprocess.run(["nsys profile --gpu-metrics-device=all -o nsys_out " + executable ], shell=True, check=True) #, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            subprocess.run(["nsys profile --gpu-metrics-device=all -o nsys_out " + executable ], shell=True, check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         except subprocess.CalledProcessError as e:
             print("Profiling of " + executable + " failed, skipping benchmark")
             raise RuntimeError("Profiling of " + executable + " failed, skipping benchmark")       
@@ -270,7 +270,7 @@ def profile_nsys(executable, kernel_name, no_rerun):
  
     #TODO: check if gpu_kern_sum or gpukernsum is available
     
-    subprocess.run(["nsys stats --report gpukernsum,gpumemtimesum " +  filename + " > nsys_reports.txt"], shell=True, check=True) #, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    subprocess.run(["nsys stats --report gpukernsum,gpumemtimesum " +  filename + " > nsys_reports.txt"], shell=True, check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     
     kernel_names = extract_kernel_names_nsys("nsys_reports.txt")
 

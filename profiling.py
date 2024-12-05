@@ -370,6 +370,26 @@ def profile_nsys(executable, kernel_name, no_rerun):
     ncu_metrics["L2 Cache Throughput (GB/s)"] = "lts__t_bytes.sum.per_second"
     
     ncu_metrics["#Divergent Branches"] = "smsp__sass_branch_targets_threads_divergent.sum"
+    
+    ncu_metrics["Warp Stalls - Barrier Not Issued"] = "smsp__pcsamp_warps_issue_stalled_barrier_not_issued"
+    ncu_metrics["Warp Stalls - Branch Resolving Not Issued"] = "smsp__pcsamp_warps_issue_stalled_branch_resolving_not_issued"
+    ncu_metrics["Warp Stalls - Dispatch Stall Not Issued"] = "smsp__pcsamp_warps_issue_stalled_dispatch_stall_not_issued"
+    ncu_metrics["Warp Stalls - Drain Not Issued"] = "smsp__pcsamp_warps_issue_stalled_drain_not_issued"
+    ncu_metrics["Warp Stalls - IMC Miss Not Issued"] = "smsp__pcsamp_warps_issue_stalled_imc_miss_not_issued"
+    ncu_metrics["Warp Stalls - LG Throttle Not Issued"] = "smsp__pcsamp_warps_issue_stalled_lg_throttle_not_issued"
+    ncu_metrics["Warp Stalls - Long Scoreboard Not Issued"] = "smsp__pcsamp_warps_issue_stalled_long_scoreboard_not_issued"
+    ncu_metrics["Warp Stalls - Math Pipe Throttle Not Issued"] = "smsp__pcsamp_warps_issue_stalled_math_pipe_throttle_not_issued"
+    ncu_metrics["Warp Stalls - Membar Not Issued"] = "smsp__pcsamp_warps_issue_stalled_membar_not_issued"
+    ncu_metrics["Warp Stalls - MIO Throttle Not Issued"] = "smsp__pcsamp_warps_issue_stalled_mio_throttle_not_issued"
+    ncu_metrics["Warp Stalls - Misc Not Issued"] = "smsp__pcsamp_warps_issue_stalled_misc_not_issued"
+    ncu_metrics["Warp Stalls - No Instructions Not Issued"] = "smsp__pcsamp_warps_issue_stalled_no_instructions_not_issued"
+    ncu_metrics["Warp Stalls - Not Selected Not Issued"] = "smsp__pcsamp_warps_issue_stalled_not_selected_not_issued"
+    ncu_metrics["Warp Stalls - Selected Not Issued"] = "smsp__pcsamp_warps_issue_stalled_selected_not_issued"
+    ncu_metrics["Warp Stalls - Short Scoreboard Not Issued"] = "smsp__pcsamp_warps_issue_stalled_short_scoreboard_not_issued"
+    ncu_metrics["Warp Stalls - Sleeping Not Issued"] = "smsp__pcsamp_warps_issue_stalled_sleeping_not_issued"
+    ncu_metrics["Warp Stalls - TEX Throttle Not Issued"] = "smsp__pcsamp_warps_issue_stalled_tex_throttle_not_issued"
+    ncu_metrics["Warp Stalls - Wait Not Issued"] = "smsp__pcsamp_warps_issue_stalled_wait_not_issued"
+
 
     ncu_sections.append("Occupancy")
     
@@ -460,10 +480,10 @@ def main():
                 res_dict = profile_nsys(executable, name, args.no_rerun)
             except RuntimeError as e:
                 return
-        print("Storing in:")
-        print(executable)
+        #print("Storing in:")
+        #print(executable)
         results[executable] = res_dict
-        print(results)
+        #print(results)
     
     # store all metrics in result csv file
     test_name = args.test_name
@@ -479,8 +499,24 @@ def main():
         if not test_name.endswith('.csv'):
             test_name += '.csv'
         df.to_csv(test_name, index=True)
-    # print errors for passed metrics that are not allowed to differ
     
+    # after storing process warp stalls to one metric to make output less verbose
+    if args.gpu == "nvidia":
+        for r in results:
+            del_keys = []
+            warp_stalls = 0
+            for key in results[r].keys():
+                if "Warp Stalls" in key:
+                    warp_stalls += results[r][key]
+                    del_keys.append(key)
+            
+            for key in del_keys:
+                del results[r][key]
+            results[r]["Warp Stalls"] = warp_stalls
+    
+    
+    # print errors for passed metrics that are not allowed to differ
+     
     if args.metrics:
         for metric in args.metrics:
             if metric in results[list(results.keys())[0]]:

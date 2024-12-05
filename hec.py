@@ -3,6 +3,7 @@ import subprocess
 import argparse
 import re
 import tarfile
+import shlex
 
 def capture_include_and_library_paths():
     # Run `make` in dry-run mode to capture output without compiling
@@ -98,7 +99,7 @@ def get_make_commands(name):
         for command in commands:
             # Replace relative .bmp and .raw file paths with absolute paths
             updated_command = process_files(command, base_path)
-            print(updated_command) 
+            #print(updated_command) 
             # Append the updated command without halving numbers
             resolved_commands.append(updated_command)
         
@@ -107,6 +108,18 @@ def get_make_commands(name):
     except subprocess.CalledProcessError as e:
         print("An error occurred while trying to get make run commands", e)
         return []
+
+
+def reduce_parameters(command):
+    # reduces all int parameters by factor 2
+    parts = shlex.split(command)  # Split the command into parts
+    reduced_parts = []
+    for part in parts:
+        if part.isdigit():  # Check if the part is a number
+            reduced_parts.append(str(max(1, int(int(part) // 2))))  # Reduce by 2, minimum 1
+        else:
+            reduced_parts.append(part)
+    return " ".join(reduced_parts)
 
 def main():
     parser = argparse.ArgumentParser(description='Script to check for HeC benchmarks available in sycl, omp and cuda/hip and builds and then profiles them')
@@ -171,8 +184,6 @@ def main():
     matching_basenames.sort()
     
     print("Directories with all three suffixes:", matching_basenames)
-    # TODO for now reduce number of benchmarks
-    #matching_basenames = matching_basenames[8:]
 
     # create directory for compilation output
     build_dir = "build"
@@ -185,9 +196,18 @@ def main():
     results_path = os.path.abspath("results")
     failed_benchmarks = []
     successfull_benchmarks = []
+    timeout_benchmarks = []
+    #remove all benchmarks already profiled from benchmark list
+    # benchmarks are already profiled if a .csv exists in results with the name
+    print(len(matching_basenames))
+    matching_basenames = [name for name in matching_basenames if not os.path.isfile(os.path.join(results_path, f"{name}.csv"))]
+
+    print(len(matching_basenames))
+
 
     # compile for each suffix with proper flags
-    for name in matching_basenames: 
+    for name in matching_basenames:
+        run_scale_factor = 1
         error_dir = os.path.join(results_path, name)
         os.makedirs(error_dir, exist_ok=True)
         
@@ -328,34 +348,72 @@ def main():
 
         if len(run_commands_omp) == 1:
             #subprocess.run("python profiling.py --verbose 0 --gpu " + args.gpu + "HeCBench/src/ + " + name + "-omp/" + run_commands_omp[0] + " omp offloading"  + "HeCBench/src/ + " + name + "-sycl/" + run_commands_sycl[0] + " SyCL" + "HeCBench/src/ + " + name + "-" + low_level_name + "/" + run_commands_low_level[0] + " " + low_level_name + " --test_name " + name)
-            subprocess.run(["python", "profiling.py",
-                "--gpu", args.gpu,
-                "--accumulate",
-                "--verbose", "0" ,
-                "--test_name", name,
-                "HeCBench/src/" + name + "-omp/" + run_commands_omp[0],
-                "omp offloading kernel", 
-                "HeCBench/src/" + name + "-sycl/" + run_commands_sycl[0],
-                "sycl kernel", 
-                "HeCBench/src/" + name + "-" + low_level_name + "/" + run_commands_low_level[0], 
-                low_level_name + "_kernel"
-                ])
-        else: 
-            for i in range(len(run_commands_omp)):
-                #subprocess.run("python profiling.py --verbose 0 --gpu " + args.gpu + "HeCBench/src/ + " + name + "-omp/" + run_commands_omp[i] + " omp offloading"  + "HeCBench/src/ + " + name + "-sycl/" + run_commands_sycl[i] + " SyCL" + "HeCBench/src/ + " + name + "-" + low_level_name + "/" + run_commands_low_level[i] + " " + low_level_name + " --test_name \"" + name + " " + run_commands_omp[i] + "\"" )
-                subprocess.run(["python", "profiling.py",
+            retries = 0
+            while retries < 5:
+                try: 
+                    subprocess.run(["python", "profiling.py",
                         "--gpu", args.gpu,
                         "--accumulate",
                         "--verbose", "0" ,
                         "--test_name", name,
-                        "HeCBench/src/" + name + "-omp/" + run_commands_omp[i],
+                        "HeCBench/src/" + name + "-omp/" + run_commands_omp[0],
                         "omp offloading kernel", 
-                        "HeCBench/src/" + name + "-sycl/" + run_commands_sycl[i],
+                        "HeCBench/src/" + name + "-sycl/" + run_commands_sycl[0],
                         "sycl kernel", 
-                        "HeCBench/src/" + name + "-" + low_level_name + "/" + run_commands_low_level[i], 
+                        "HeCBench/src/" + name + "-" + low_level_name + "/" + run_commands_low_level[0], 
                         low_level_name + "_kernel"
-                        ])
+                        ],
+                        timeout = 3600)
+                    if result.returncode != 0:
+                        print("Profiling of benchmark " + name + " failed")
+                        failed_benchmarks.append(name)
+                        continue
+ 
+                except subprocess.TimeoutExpired:
+                    retries += 1
+                    run_commands_omp[0] = reduce_parameters(run_commands_omp[0])
+                    run_commands_sycl[0] = reduce_parameters(run_commands_sycl[0])
+                    run_commands_low_level[0] = reduce_parameters(run_commands_low_level[0])
+            if retries == 5:
+                print("Benchmark " + name + " timeouted, continuing with next one")
+                timeout_benchmarks.append(name)
+                continue
 
+        else: 
+            for i in range(len(run_commands_omp)):
+                #subprocess.run("python profiling.py --verbose 0 --gpu " + args.gpu + "HeCBench/src/ + " + name + "-omp/" + run_commands_omp[i] + " omp offloading"  + "HeCBench/src/ + " + name + "-sycl/" + run_commands_sycl[i] + " SyCL" + "HeCBench/src/ + " + name + "-" + low_level_name + "/" + run_commands_low_level[i] + " " + low_level_name + " --test_name \"" + name + " " + run_commands_omp[i] + "\"" )
+                retries = 0
+                while retries < 5:
+                    try:
+                         result = subprocess.run(["python", "profiling.py",
+                            "--gpu", args.gpu,
+                            "--accumulate",
+                            "--verbose", "0" ,
+                            "--test_name", name + "_"+ str(i),
+                            "HeCBench/src/" + name + "-omp/" + run_commands_omp[i],
+                            "omp offloading kernel", 
+                            "HeCBench/src/" + name + "-sycl/" + run_commands_sycl[i],
+                            "sycl kernel", 
+                            "HeCBench/src/" + name + "-" + low_level_name + "/" + run_commands_low_level[i], 
+                            low_level_name + "_kernel"
+                            ],
+                            timeout = 1)
+                         if result.returncode != 0:
+                             print("Profiling of benchmark " + name + " failed")
+                             failed_benchmarks.append(name)
+                             continue
+                    except subprocess.TimeoutExpired:
+                            retries += 1
+                            run_commands_omp[0]
+                            run_commands_omp[0] = reduce_parameters(run_commands_omp[0])
+                            run_commands_sycl[0] = reduce_parameters(run_commands_sycl[0])
+                            run_commands_low_level[0] = reduce_parameters(run_commands_low_level[0])
+                            print(run_commands_omp[0])
+
+                if retries == 5:
+                    print("Benchmark " + name + " timeouted, continuing with next one")
+                    failed_benchmarks.append(name)
+                    continue
     
     
         successfull_benchmarks.append(name)
@@ -363,11 +421,17 @@ def main():
         print(successfull_benchmarks)
         print("Build Failed so far for :")
         print(failed_benchmarks)
-    
+        print("Timeouted Benchmarks so far:")
+        print(timeout_benchmarks)
+
+
     print("Benchmarking finished")
     print("Build failed for:")
     print(failed_benchmarks)
     print("Check build logs in result directory")
+    print("Timeouted Benchmarks:")
+    print(timeout_benchmarks)
+
 
 
 if  __name__ == "__main__":

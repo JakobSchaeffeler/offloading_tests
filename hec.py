@@ -4,6 +4,10 @@ import argparse
 import re
 import tarfile
 import shlex
+import shutil
+import signal
+import glob
+import time
 
 def capture_include_and_library_paths():
     # Run `make` in dry-run mode to capture output without compiling
@@ -203,8 +207,10 @@ def main():
     matching_basenames = [name for name in matching_basenames if not os.path.isfile(os.path.join(results_path, f"{name}.csv"))]
 
     print(len(matching_basenames))
-
-
+    
+    matching_basenames = matching_basenames[5:]
+    
+    print(matching_basenames)
     # compile for each suffix with proper flags
     for name in matching_basenames:
         run_scale_factor = 1
@@ -326,6 +332,12 @@ def main():
         print(run_commands_low_level)
         print(run_commands_omp)
         print(run_commands_sycl)
+
+        if len(run_commands_low_level) != len(run_commands_omp) or len(run_commands_omp) != len(run_commands_sycl):
+            print("Number of commands in make run do not match in " + name + ". Skipping benchmark")
+            failed_benchmarks.append(name)
+            continue
+
         #if len(run_commands_omp) != len(run_commands_sycl) or len(run_commands_sycl) != len(run_commands_low_level):
         #    print("Did not find matching number of commands executed for different models " + name)
 
@@ -349,9 +361,10 @@ def main():
         if len(run_commands_omp) == 1:
             #subprocess.run("python profiling.py --verbose 0 --gpu " + args.gpu + "HeCBench/src/ + " + name + "-omp/" + run_commands_omp[0] + " omp offloading"  + "HeCBench/src/ + " + name + "-sycl/" + run_commands_sycl[0] + " SyCL" + "HeCBench/src/ + " + name + "-" + low_level_name + "/" + run_commands_low_level[0] + " " + low_level_name + " --test_name " + name)
             retries = 0
+            result = None
             while retries < 5:
                 try: 
-                    subprocess.run(["python", "profiling.py",
+                    result = subprocess.Popen(["python", "profiling.py",
                         "--gpu", args.gpu,
                         "--accumulate",
                         "--verbose", "0" ,
@@ -361,23 +374,25 @@ def main():
                         "HeCBench/src/" + name + "-sycl/" + run_commands_sycl[0],
                         "sycl kernel", 
                         "HeCBench/src/" + name + "-" + low_level_name + "/" + run_commands_low_level[0], 
-                        low_level_name + "_kernel"
-                        ],
-                        timeout = 3600)
-                    if result.returncode != 0:
-                        print("Profiling of benchmark " + name + " failed")
-                        failed_benchmarks.append(name)
-                        continue
- 
+                        low_level_name + "_kernel"], start_new_session=True)
+                    result.wait(timeout=3600)
                 except subprocess.TimeoutExpired:
+                    os.killpg(os.getpgid(result.pid), signal.SIGTERM)
+                    time.sleep(1)
                     retries += 1
                     run_commands_omp[0] = reduce_parameters(run_commands_omp[0])
                     run_commands_sycl[0] = reduce_parameters(run_commands_sycl[0])
                     run_commands_low_level[0] = reduce_parameters(run_commands_low_level[0])
+            
             if retries == 5:
                 print("Benchmark " + name + " timeouted, continuing with next one")
                 timeout_benchmarks.append(name)
                 continue
+            if result.returncode != 0:
+                print("Profiling of benchmark " + name + " failed")
+                failed_benchmarks.append(name)
+                continue
+ 
 
         else: 
             for i in range(len(run_commands_omp)):
@@ -385,7 +400,7 @@ def main():
                 retries = 0
                 while retries < 5:
                     try:
-                         result = subprocess.run(["python", "profiling.py",
+                         result = subprocess.Popen(["python", "profiling.py",
                             "--gpu", args.gpu,
                             "--accumulate",
                             "--verbose", "0" ,
@@ -396,25 +411,27 @@ def main():
                             "sycl kernel", 
                             "HeCBench/src/" + name + "-" + low_level_name + "/" + run_commands_low_level[i], 
                             low_level_name + "_kernel"
-                            ],
-                            timeout = 1)
-                         if result.returncode != 0:
-                             print("Profiling of benchmark " + name + " failed")
-                             failed_benchmarks.append(name)
-                             continue
+                            ], start_new_session=True)
+                         result.wait(timeout=3600)
+                         
                     except subprocess.TimeoutExpired:
-                            retries += 1
-                            run_commands_omp[0]
-                            run_commands_omp[0] = reduce_parameters(run_commands_omp[0])
-                            run_commands_sycl[0] = reduce_parameters(run_commands_sycl[0])
-                            run_commands_low_level[0] = reduce_parameters(run_commands_low_level[0])
-                            print(run_commands_omp[0])
+                        os.killpg(os.getpgid(result.pid), signal.SIGTERM)
+                        retries += 1
+                        run_commands_omp[0]
+                        run_commands_omp[0] = reduce_parameters(run_commands_omp[0])
+                        run_commands_sycl[0] = reduce_parameters(run_commands_sycl[0])
+                        run_commands_low_level[0] = reduce_parameters(run_commands_low_level[0])
+                        print(run_commands_omp[0])
 
                 if retries == 5:
                     print("Benchmark " + name + " timeouted, continuing with next one")
                     failed_benchmarks.append(name)
                     continue
-    
+                if result.returncode != 0:
+                    print("Profiling of benchmark " + name + " failed")
+                    failed_benchmarks.append(name)
+                    continue
+                   
     
         successfull_benchmarks.append(name)
         print("Successfull benchmarks so far:")

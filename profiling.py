@@ -28,9 +28,18 @@ def extract_kernel_names_nsys(filepath):
             if line.strip() == "":
                 break
             # Get the last element from the line after splitting
-            kernel_name = line.strip().split()[-1]
+            kernel_name = ""
+            kernel_name_end = line.strip().split()[-1]
+            #this ensures that full names of kernels are stored from(  to )
+            if ")" in kernel_name_end:
+                for k in reversed(line.strip().split()):
+                    kernel_name =  k + " " + kernel_name
+                    if "(" in k:
+                        break
+            else:
+                kernel_name = kernel_name_end
+            
             kernel_names.append(kernel_name)
-
     return kernel_names
 
 def get_largest_substring(str1, str2):
@@ -82,7 +91,6 @@ def get_line_with_substring(filename, substring):
             # Check if the line contains the desired substring
             if substring in line:
                 return line
-    #print("Error in parsing profiling output: No line containing the substring " + substring + " was found.")
     return None
 
 def get_every_line_with_substring(filename, substring):
@@ -92,11 +100,38 @@ def get_every_line_with_substring(filename, substring):
             # Check if the line contains the desired substring
             if substring in line:
                 lines.append(line)
-    #print("Error in parsing profiling output: No line containing the substring " + substring + " was found.")
     return lines
 
 def contains_number(s):
     return bool(re.search(r'\d', s))
+
+
+def get_runtime_overall(filename):
+    time = 0 
+    with open(filename, 'r') as file:
+        lines = file.readlines()
+
+        # Locate the line containing "Time(%)"
+        for i, line in enumerate(lines):
+            if "Time(%)" in line or "Time (%)" in line:
+                # Move two lines ahead from "Time(%)" line
+                start_index = i + 2
+                break
+        else:
+            # "Time(%)" not found
+            return time
+
+        # Collect kernel names until an empty line
+        for line in lines[start_index:]:
+            if line.strip() == "":
+                break
+
+            time += int(line.split()[1].replace(',', ''))
+
+    return time
+
+
+
 
 
 def profile_amd(executable, kernel_name, no_rerun):
@@ -114,7 +149,7 @@ def profile_amd(executable, kernel_name, no_rerun):
     metrics["Issue Wait Cycles per wave"] = "7.2.5" #should be summed up if multiple kernels exist
     metrics["Grid Size"] = "7.1.0" 
     metrics["#Threads"] = "7.1.1"
-    metrics["Shared Memory Allocated"] = "3.1.14" #should be summed up if multiple kernels exist
+    metrics["Shared Memory Allocated per workgroup"] = "3.1.14" #should be summed up if multiple kernels exist
     metrics["Shared Memory Instructions per wave"] = "12.2.0" #should be summed up if multiple kernels exist
     metrics["Shared Memory Bank Conflicts (%)"] = "12.1.3"
     metrics["Register Spill Instructions per wave"] = "15.1.9" #should be summed up if multiple kernels exist
@@ -123,6 +158,8 @@ def profile_amd(executable, kernel_name, no_rerun):
     metrics["Global Memory Write Instructions per wave"] = "10.3.2" #should be summed up if multiple kernels exist
     metrics["Coalesced Instructions (% of peak)"] = "16.1.3"
     metrics["Global Atomic Operations per wave"] = "15.1.8" #should be summed up if multiple kernels exist
+    metrics["Global Read Bytes per wave "] = "17.2.0"
+    metrics["Global Write/Atomic Bytes per wave"] = "17.2.4"
     result_dict, overall_kernel_count = profile_omni(executable,kernel_name, metrics, no_rerun)
     
     #process obtained metrics
@@ -157,12 +194,26 @@ def get_overall_kernel_count(file_path):
     # Add 1 to convert the last Dispatch_ID to the total number of launches
     return kernel_id + 1
 
+
+
+def get_average_in_ncu(filename, metric):
+    metric_sum = 0
+    count = 0
+    with open(filename, 'r') as file:
+        for line in file:
+            if metric in line:
+                count += 1
+                metric_sum += int(line.split()[2].replace(',', ''))
+    return metric_sum/count
+
+
 def profile_omni(executable, kernel_name, metrics, no_rerun):
     
     profile_command = ["omniperf profile -n gpu -- " + executable]
     # profile executable
     subprocess.run(profile_command, shell=True, check=True, stdout=subprocess.DEVNULL)
 
+    print("profiling finished for " + executable) 
 
     # extract kernel number
     directory = "workloads/gpu/"
@@ -201,11 +252,10 @@ def profile_omni(executable, kernel_name, metrics, no_rerun):
         subprocess.run(analyze_command, shell=True, check=True)
 
         overall_kernel_count = get_overall_kernel_count("kernel_stats.txt")
-        #kernel_line = get_line_with_substring_linebreak("kernel_stats.txt", kernel_name)  
-        #parts = kernel_line.split('│')
-        #kernel_number = parts[1].strip()
+        
         kernel_name = "accumulate"
-        # get stats for passed kernelname
+        
+        # get stats for all kernels
         analyze_command = "omniperf analyze -p " + directory +  " > " + kernel_name + "_stats.txt"
         subprocess.run(analyze_command, shell=True, check=True)
 
@@ -266,8 +316,6 @@ def profile_nsys(executable, kernel_name, no_rerun):
     elif os.path.isfile("nsys_out.nsys-rep"):
         filename = "nsys_out.nsys-rep"
  
-    #TODO: check if gpu_kern_sum or gpukernsum is available
-    
     subprocess.run(["nsys stats --report gpukernsum,gpumemtimesum " +  filename + " > nsys_reports.txt"], shell=True, check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     
     kernel_names = extract_kernel_names_nsys("nsys_reports.txt")
@@ -283,19 +331,8 @@ def profile_nsys(executable, kernel_name, no_rerun):
             
     dtoh_line = get_line_with_substring("nsys_reports.txt", "DtoH")
     htod_line = get_line_with_substring("nsys_reports.txt", "HtoD")
-    global accumulate
-    if not accumulate:
-        kernel_line_list = kernel_line.split()
 
-        kernel_time = int(kernel_line_list[1].replace(',', ''))
-    else: 
-        kernel_time = 0
-        for k_name in kernel_names:
-            kernel_line = get_line_with_substring("nsys_reports.txt", k_name)
-            kernel_line_list = kernel_line.split()
-
-            kernel_time += int(kernel_line_list[1].replace(',', ''))
-
+    kernel_time = get_runtime_overall("nsys_reports.txt")
 
     dtoh_list = dtoh_line.split() 
     dtoh_time = int(dtoh_list[1].replace(',', ''))  
@@ -309,24 +346,6 @@ def profile_nsys(executable, kernel_name, no_rerun):
     metric_dict["HtoD copy time"] = htod_time
     metric_dict["DtoH copy time"] = dtoh_time
 
-    if not accumulate or len(kernel_names) == 1:
-        
-        profile_command = "ncu --set full " + executable + " > ncu_full_out.txt"
-        
-        subprocess.run(profile_command, shell=True, check=True)
-        
-        
-        #get thread/team config
-        thread_line = get_line_with_substring("ncu_full_out.txt", "Block Size")
-        thread = int(thread_line.split()[2].replace(',', ''))
-
-        grid_line = get_line_with_substring("ncu_full_out.txt", "Grid Size")
-        grid = int(grid_line.split()[2].replace(',', ''))
-                
-        metric_dict["#Threads"] = thread
-        metric_dict["#Teams"] = grid
-
-
     ncu_metrics = {}
     ncu_sections = []
     
@@ -336,15 +355,9 @@ def profile_nsys(executable, kernel_name, no_rerun):
     ncu_metrics["Shared Memory Stores"] = "smsp__inst_executed_op_shared_st.sum"
     ncu_metrics["Shared Memory Loads"] = "smsp__inst_executed_op_shared_ld.sum"
 
-
-    # get shared memory throughput: l1tex__data_pipe_lsu_wavefronts_mem_shared_op_st.sum.per_second, l1tex__data_pipe_lsu_wavefronts_mem_shared_op_ld.sum.per_second
-    #ncu_metrics["Shared Memory Store Throughput"] = "l1tex__data_pipe_lsu_wavefronts_mem_shared_op_st.sum.per_second"
-    #ncu_metrics["Shared Memory Load Troughput"] = "l1tex__data_pipe_lsu_wavefronts_mem_shared_op_ld.sum.per_second"
-
     # get shared memory bank conflicts: l1tex__data_bank_conflicts_pipe_lsu_mem_shared_op_ld.sum, l1tex__data_bank_conflicts_pipe_lsu_mem_shared_op_st.sum
     ncu_metrics["Shared Memory Store Bank Conflicts"] = "l1tex__data_bank_conflicts_pipe_lsu_mem_shared_op_st.sum"
     ncu_metrics["Shared Memory Load Bank Conflicts"] = "l1tex__data_bank_conflicts_pipe_lsu_mem_shared_op_ld.sum"
-
 
     # global store/load instructions
     ncu_metrics["Global Memory Load Instructions"] = "smsp__inst_executed_op_global_ld.sum"
@@ -394,7 +407,9 @@ def profile_nsys(executable, kernel_name, no_rerun):
     ncu_sections.append("Occupancy")
     
     ncu_sections.append("SourceCounters")
-    #TODO add metric names from sections: Occupancy and Divergent Branches, Warp Stalls
+    
+    ncu_sections.append("LaunchStats")
+
     sections_string = ""
     for section in ncu_sections:
         sections_string += "--section " + section + " "
@@ -406,6 +421,23 @@ def profile_nsys(executable, kernel_name, no_rerun):
 
     subprocess.run(profile_command, shell=True, check=True, stdout=subprocess.DEVNULL)
     
+
+    if len(kernel_names) == 1 or not accumulate:
+
+        #get thread/team config
+        thread_line = get_line_with_substring("ncu_out.txt", "Block Size")
+        thread = int(thread_line.split()[2].replace(',', ''))
+        grid_line = get_line_with_substring("ncu_out.txt", "Grid Size")
+        grid = int(grid_line.split()[2].replace(',', ''))
+
+        metric_dict["#Threads"] = thread
+        metric_dict["#Teams"] = grid
+    else:
+        metric_dict["#Threads"] = get_average_in_ncu("ncu_out.txt", "Block Size")
+        metric_dict["#Teams"] =  get_average_in_ncu("ncu_out.txt", "Grid Size")
+
+
+
     # append metrics in sections
 
     ncu_metrics["Occupancy"] = "Achieved Occupancy"
@@ -445,7 +477,7 @@ def main():
     parser.add_argument("--verbose", nargs="?", const=True, type=float, 
                     help="If verbose is set without a value, print all items that differ. If a number is passed, only print items that differ by at least that percentage.") 
     
-    parser.add_argument("--no_rerun", action="store_true", help="Disable that profiler is run again.")
+    parser.add_argument("--no_rerun", action="store_true", help="Disable that profiler is run again. This requires that profiling information is already collected for the benchmark")
 
     parser.add_argument("--metrics", nargs="+", help="List of metrics that are not allowed to differ")
 
@@ -480,10 +512,8 @@ def main():
                 res_dict = profile_nsys(executable, name, args.no_rerun)
             except RuntimeError as e:
                 return
-        #print("Storing in:")
-        #print(executable)
+        executable += " " + name
         results[executable] = res_dict
-        #print(results)
     
     # store all metrics in result csv file
     test_name = args.test_name
@@ -536,7 +566,8 @@ def main():
             pct = 0
         else: 
             pct = args.verbose
-    keys = results[exec_name_pairs[0][0]].keys()
+    #keys = results[exec_name_pairs[0][0]].keys()
+    keys = results[next(iter(results))].keys()
     del_keys = []
     for key in keys:
         # Get the value of the key from the first executable's dictionary
@@ -550,11 +581,11 @@ def main():
             del_keys.append(key)
 
     for key in del_keys:
-        for executable, _ in exec_name_pairs:
+        for executable in results:
             del results[executable][key]
 
-    if len(results[exec_name_pairs[0][0]].keys()) > 0:    
-        print("[WARNING] The following metrics differ by more than " + str(pct) + "% in " +test_name)
+    if len(results[next(iter(results))].keys()) > 0:    
+        print("[INFO] The following metrics differ by more than " + str(pct) + "% in " +test_name)
         stripped_dict = {key: value for key, value in results.items()}
         pd.set_option('display.float_format', '{:.2f}'.format)
         df = pd.DataFrame(stripped_dict)

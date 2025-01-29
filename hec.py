@@ -48,30 +48,14 @@ def halve_numbers_in_string(s):
     # Use re.sub to replace each number in the string with half its value
     return re.sub(r'\d+', halve, s)
 
-#def get_make_commands(name):
-#    try:
-#        # Run make with -n o list all commands executed by run
-#        result = subprocess.run(["make", "-n", "run", "program="+name], capture_output=True, text=True, check=True)
-#
-#        # Filter out lines that look like shell commands
-#        commands = [line.strip() for line in result.stdout.splitlines() if line.strip() and not line.startswith("make")]
-#        
-#        halve_list = []
-#        for command in commands:
-#            halve_list.append(halve_numbers_in_string(command))
-#        return halve_list
-#
-#    except subprocess.CalledProcessError as e:
-#        print("An error occurred while trying to get make run commands", e)
-#        return []
 
+# process files in input so they are replaced with full paths
 def process_files(output, base_path):
     # Regex to detect .bmp and .raw file paths
     file_pattern = r"(?:(?:\.\./|\.?/)?(?:[\w\-/]+(?:\.bmp|\.raw))|(?:/[^\s]+(?:\.bmp|\.raw)))"
     
     # Find all .bmp and .raw file paths
     detected_paths = re.findall(file_pattern, output)
-    print(detected_paths) 
     resolved_paths = {}
     for path in detected_paths:
         if path.startswith("../") or path.startswith("./") or not os.path.isabs(path):
@@ -103,7 +87,6 @@ def get_make_commands(name):
         for command in commands:
             # Replace relative .bmp and .raw file paths with absolute paths
             updated_command = process_files(command, base_path)
-            #print(updated_command) 
             # Append the updated command without halving numbers
             resolved_commands.append(updated_command)
         
@@ -124,6 +107,11 @@ def reduce_parameters(command):
         else:
             reduced_parts.append(part)
     return " ".join(reduced_parts)
+
+def remove_compilation_commands(command_list):
+    return [cmd for cmd in command_list if cmd.startswith("./") and not (".o" in cmd and not ".out" in cmd)]
+
+
 
 def main():
     parser = argparse.ArgumentParser(description='Script to check for HeC benchmarks available in sycl, omp and cuda/hip and builds and then profiles them')
@@ -203,14 +191,12 @@ def main():
     timeout_benchmarks = []
     #remove all benchmarks already profiled from benchmark list
     # benchmarks are already profiled if a .csv exists in results with the name
-    print(len(matching_basenames))
     matching_basenames = [name for name in matching_basenames if not os.path.isfile(os.path.join(results_path, f"{name}.csv"))]
 
-    print(len(matching_basenames))
     
-    matching_basenames = matching_basenames[5:]
-    
+    print("Removed all benchmarks that already have results in results directory, the following benchmarks will be profiled:") 
     print(matching_basenames)
+    matching_basenames=["s8n"] 
     # compile for each suffix with proper flags
     for name in matching_basenames:
         run_scale_factor = 1
@@ -224,12 +210,21 @@ def main():
 
         # for openmp: go into subdir and compile with appropriate flags 
         os.chdir(name + "-omp")
+        
+        # some benchmarks do not have a Makefile and have to be skipped
+        if not os.path.isfile("Makefile"):
+            print("No Makefile found for OpenMP implementation, continuing with next benchmark")
+            os.chdir("../../../")
+            continue
+        
+        # if Makefile exists make variables consistent
         with open("Makefile", "r") as file:
             content = file.read()
         
-        # Replace occurrences
+        # Replace 
         content = re.sub(r'\bNVCC\b', 'CC', content)
         content = re.sub(r'\bNVCC_FLAGS\b', 'CFLAGS', content)
+
         # Write the updated Makefile back
         with open("Makefile", "w") as file:
             file.write(content)
@@ -243,8 +238,7 @@ def main():
         command.append("program=omp OPTIMIZE=yes")
         subprocess.run(["make", "clean"],stdout=subprocess.PIPE, stderr=subprocess.PIPE)
         
-        print(command)
-        # File to store errors
+        # run make command and store logs
         error_file_omp = os.path.join(error_dir, "omp.log")
         with open(error_file_omp, "w") as err_file:
             err_omp = subprocess.run(command, check=False, stdout=err_file, stderr=err_file)
@@ -256,8 +250,7 @@ def main():
         # sycl compilation and get run commands
         os.chdir(name + "-sycl")
         include_paths, library_paths, d_paths, o_flag = capture_include_and_library_paths()
-        #print(include_paths)
-        #print(library_paths)
+        
         cflags = " ".join([f"-I{path}" for path in include_paths] + [f"-L{path}" for path in library_paths] + [f"-D{path}" for path in d_paths] + [f"-O{flag}" for flag in o_flag])
         command = ["make"]
         if args.sycl_compiler is not None:
@@ -271,7 +264,7 @@ def main():
         command.append("program=sycl OPTIMIZE=yes")
         subprocess.run(["make", "clean"],stdout=subprocess.PIPE, stderr=subprocess.PIPE)
 
-         # File to store errors
+         # run make command and store logs
         error_file_sycl = os.path.join(error_dir, "sycl.log")
         with open(error_file_sycl, "w") as err_file:
             err_sycl = subprocess.run(command, check=False, stdout=err_file, stderr=err_file)
@@ -296,7 +289,7 @@ def main():
                 command.append("CFLAGS=" + args.hip_flags + " " + cflags)
             command.append("program=hip")
             subprocess.run(["make", "clean"],stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-            # File to store errors
+            # run make command and store logs
             error_file_low_level = os.path.join(error_dir, "hip.log")
             with open(error_file_low_level, "w") as err_file:
                 err_low_level = subprocess.run(command, check=False, stdout=err_file, stderr=err_file)
@@ -315,9 +308,8 @@ def main():
                 command.append("CFLAGS=" + args.cuda_flags + " " + cflags)
             command.append("program=cuda")
             command.append("ARCH="+ args.arch)
-            print(command) 
             subprocess.run(["make", "clean"],stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-            # File to store errors
+            # run make command and store logs
             error_file_low_level = os.path.join(error_dir, "cuda.log")
             with open(error_file_low_level, "w") as err_file:
                 err_low_level = subprocess.run(command, check=False, stdout=err_file, stderr=err_file)
@@ -328,7 +320,10 @@ def main():
         os.chdir("../")
         os.chdir("../")
 
-
+        run_commands_low_level = remove_compilation_commands(run_commands_low_level)
+        run_commands_omp = remove_compilation_commands(run_commands_omp)
+        run_commands_sycl = remove_compilation_commands(run_commands_sycl)
+        print("Profiling the following programs")
         print(run_commands_low_level)
         print(run_commands_omp)
         print(run_commands_sycl)
@@ -338,8 +333,6 @@ def main():
             failed_benchmarks.append(name)
             continue
 
-        #if len(run_commands_omp) != len(run_commands_sycl) or len(run_commands_sycl) != len(run_commands_low_level):
-        #    print("Did not find matching number of commands executed for different models " + name)
 
         #profile everything, if multiple run in make run profile each individually
         if err_low_level.returncode != 0:
@@ -359,7 +352,6 @@ def main():
             continue
 
         if len(run_commands_omp) == 1:
-            #subprocess.run("python profiling.py --verbose 0 --gpu " + args.gpu + "HeCBench/src/ + " + name + "-omp/" + run_commands_omp[0] + " omp offloading"  + "HeCBench/src/ + " + name + "-sycl/" + run_commands_sycl[0] + " SyCL" + "HeCBench/src/ + " + name + "-" + low_level_name + "/" + run_commands_low_level[0] + " " + low_level_name + " --test_name " + name)
             retries = 0
             result = None
             while retries < 5:
@@ -376,6 +368,9 @@ def main():
                         "HeCBench/src/" + name + "-" + low_level_name + "/" + run_commands_low_level[0], 
                         low_level_name + "_kernel"], start_new_session=True)
                     result.wait(timeout=3600)
+                    break
+
+                # if a timeout is reached the process has to be killed, otherwise the profiling tool will continue to execute and block resources
                 except subprocess.TimeoutExpired:
                     os.killpg(os.getpgid(result.pid), signal.SIGTERM)
                     time.sleep(1)
@@ -394,9 +389,9 @@ def main():
                 continue
  
 
-        else: 
+        else:
+            # if multiple run commands exists profile them individually and store in <benchmarkname>_i.csv 
             for i in range(len(run_commands_omp)):
-                #subprocess.run("python profiling.py --verbose 0 --gpu " + args.gpu + "HeCBench/src/ + " + name + "-omp/" + run_commands_omp[i] + " omp offloading"  + "HeCBench/src/ + " + name + "-sycl/" + run_commands_sycl[i] + " SyCL" + "HeCBench/src/ + " + name + "-" + low_level_name + "/" + run_commands_low_level[i] + " " + low_level_name + " --test_name \"" + name + " " + run_commands_omp[i] + "\"" )
                 retries = 0
                 while retries < 5:
                     try:
@@ -413,7 +408,8 @@ def main():
                             low_level_name + "_kernel"
                             ], start_new_session=True)
                          result.wait(timeout=3600)
-                         
+                         break
+                                                            
                     except subprocess.TimeoutExpired:
                         os.killpg(os.getpgid(result.pid), signal.SIGTERM)
                         retries += 1

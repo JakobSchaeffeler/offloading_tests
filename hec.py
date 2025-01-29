@@ -196,7 +196,6 @@ def main():
     
     print("Removed all benchmarks that already have results in results directory, the following benchmarks will be profiled:") 
     print(matching_basenames)
-    matching_basenames=["s8n"] 
     # compile for each suffix with proper flags
     for name in matching_basenames:
         run_scale_factor = 1

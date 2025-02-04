@@ -1,22 +1,25 @@
+"""
+Python script to automatically build and profile benchmarks from HeCBench,
+that exist in OpenMP, SYCL and HIP/CUDA
+"""
 import os
 import subprocess
 import argparse
 import re
 import tarfile
 import shlex
-import shutil
 import signal
-import glob
 import time
 
+
 def capture_include_and_library_paths():
-    # Run `make` in dry-run mode to capture output without compiling
+    """
+    Run `make` in dry-run mode to capture output without compiling.
+    Then capture includes and library paths from command
+    """
     try:
         result = subprocess.run(
-            ["make", "-n", "OPTIMIZE=yes"],
-            capture_output=True,
-            text=True,
-            check=True
+            ["make", "-n", "OPTIMIZE=yes"], capture_output=True, text=True, check=True
         )
     except subprocess.CalledProcessError as e:
         print(f"Error running make: {e}")
@@ -39,21 +42,26 @@ def capture_include_and_library_paths():
 
     return include_paths, library_paths, d_paths, o_flag
 
+
 def halve_numbers_in_string(s):
+    """Divides all numbers in a string by 2, rest unchanged"""
     def halve(match):
         number = int(match.group())
         return str(number)
-        #return str(number // 4) if (number // 4) > 0 else str(1)
+        # return str(number // 4) if (number // 4) > 0 else str(1)
 
     # Use re.sub to replace each number in the string with half its value
-    return re.sub(r'\d+', halve, s)
+    return re.sub(r"\d+", halve, s)
 
 
-# process files in input so they are replaced with full paths
 def process_files(output, base_path):
+    """process files in input so they are replaced with full paths"""
+
     # Regex to detect .bmp and .raw file paths
-    file_pattern = r"(?:(?:\.\./|\.?/)?(?:[\w\-/]+(?:\.bmp|\.raw))|(?:/[^\s]+(?:\.bmp|\.raw)))"
-    
+    file_pattern = (
+        r"(?:(?:\.\./|\.?/)?(?:[\w\-/]+(?:\.bmp|\.raw))|(?:/[^\s]+(?:\.bmp|\.raw)))"
+    )
+
     # Find all .bmp and .raw file paths
     detected_paths = re.findall(file_pattern, output)
     resolved_paths = {}
@@ -72,13 +80,24 @@ def process_files(output, base_path):
 
     return output
 
+
 def get_make_commands(name):
+    """extract executables with arguments from make run command"""
     try:
         # Run make with -n to list all commands executed by run
-        result = subprocess.run(["make", "-n", "run", "program="+name], capture_output=True, text=True, check=True)
+        result = subprocess.run(
+            ["make", "-n", "run", "program=" + name],
+            capture_output=True,
+            text=True,
+            check=True,
+        )
 
         # Filter out lines that look like shell commands
-        commands = [line.strip() for line in result.stdout.splitlines() if line.strip() and not line.startswith("make")]
+        commands = [
+            line.strip()
+            for line in result.stdout.splitlines()
+            if line.strip() and not line.startswith("make")
+        ]
 
         # Process commands to resolve file paths
         resolved_commands = []
@@ -89,7 +108,7 @@ def get_make_commands(name):
             updated_command = process_files(command, base_path)
             # Append the updated command without halving numbers
             resolved_commands.append(updated_command)
-        
+
         return resolved_commands
 
     except subprocess.CalledProcessError as e:
@@ -98,26 +117,45 @@ def get_make_commands(name):
 
 
 def reduce_parameters(command):
-    # reduces all int parameters by factor 2
+    """reduces all int parameters by factor 2"""
     parts = shlex.split(command)  # Split the command into parts
     reduced_parts = []
     for part in parts:
         if part.isdigit():  # Check if the part is a number
-            reduced_parts.append(str(max(1, int(int(part) // 2))))  # Reduce by 2, minimum 1
+            reduced_parts.append(
+                str(max(1, int(int(part) // 2)))
+            )  # Reduce by 2, minimum 1
         else:
             reduced_parts.append(part)
     return " ".join(reduced_parts)
 
-def remove_compilation_commands(command_list):
-    return [cmd for cmd in command_list if cmd.startswith("./") and not (".o" in cmd and not ".out" in cmd)]
 
+def remove_compilation_commands(command_list):
+    """remove all commands from a list that do not execute an executable"""
+    return [
+        cmd
+        for cmd in command_list
+        if cmd.startswith("./") and not (".o" in cmd and not ".out" in cmd)
+    ]
 
 
 def main():
-    parser = argparse.ArgumentParser(description='Script to check for HeC benchmarks available in sycl, omp and cuda/hip and builds and then profiles them')
+    """
+    main to parse compilers and compiler flags passed.
+    Then all benchmarks are build and profiled
+    """
+    parser = argparse.ArgumentParser(
+        description="Script to check for HeC benchmarks available in sycl, \
+            omp and cuda/hip and builds and then profiles them"
+    )
 
-    parser.add_argument('--gpu', choices=['nvidia', 'amd'], default="nvidia", help='Optional argument specifying GPU type (nvidia or amd)') 
-    
+    parser.add_argument(
+        "--gpu",
+        choices=["nvidia", "amd"],
+        default="nvidia",
+        help="Optional argument specifying GPU type (nvidia or amd)",
+    )
+
     # arguments for passing compilers and flags
     parser.add_argument("--cuda_compiler", type=str, help="CUDA compiler")
     parser.add_argument("--cuda_flags", type=str, help="CUDA compilation flags")
@@ -127,7 +165,11 @@ def main():
     parser.add_argument("--omp_flags", type=str, help="OpenMP compilation flags")
     parser.add_argument("--sycl_compiler", type=str, help="SYCL compiler")
     parser.add_argument("--sycl_flags", type=str, help="SYCL compilation flags")
-    parser.add_argument("--arch", default="sm_70", help="architecture to compile for, e.g sm_70, gfx908,..." )
+    parser.add_argument(
+        "--arch",
+        default="sm_70",
+        help="architecture to compile for, e.g sm_70, gfx908,...",
+    )
     args = parser.parse_args()
 
     # Repository URL and local path
@@ -138,22 +180,23 @@ def main():
     if not os.path.isdir(local_path):
         # Clone the repository
         print(f"Cloning repository from {repo_url}...")
-        subprocess.run(["git", "clone", repo_url])
+        subprocess.run(["git", "clone", repo_url], check=True)
 
     # Untar files in HeCBench
-    for root, dirs, files in os.walk("HeCBench"):
+    for root, _, files in os.walk("HeCBench"):
         for file in files:
-            if file.endswith('.tar.gz'):
+            if file.endswith(".tar.gz"):
                 tar_path = os.path.join(root, file)
                 try:
-                    with tarfile.open(tar_path, 'r:gz') as tar:
-                        tar.extractall(path=root, filter='data')
+                    with tarfile.open(tar_path, "r:gz") as tar:
+                        tar.extractall(path=root, filter="data")
 
-                except Exception as e: 
-                    print("Failed to extract tar file " + tar_path)
+                except Exception as e:
+                    print("Failed to extract tar file " + tar_path + "from " + e)
+
 
     # Check for suffixes in src directory
-    suffixes = [ "-sycl", "-omp"]
+    suffixes = ["-sycl", "-omp"]
     if args.gpu == "amd":
         suffixes.append("-hip")
     elif args.gpu == "nvidia":
@@ -165,23 +208,29 @@ def main():
 
     if os.path.isdir(src_path):
         # Get the base names of directories without suffixes
-        potential_basenames = set(item.rsplit("-", 1)[0] for item in os.listdir(src_path)
-                                  if os.path.isdir(os.path.join(src_path, item)))
-        
+        potential_basenames = set(
+            item.rsplit("-", 1)[0]
+            for item in os.listdir(src_path)
+            if os.path.isdir(os.path.join(src_path, item))
+        )
+
         # Check if all suffixes are present for each base name
         for basename in potential_basenames:
-            if all(os.path.isdir(os.path.join(src_path, f"{basename}{suffix}")) for suffix in suffixes):
+            if all(
+                os.path.isdir(os.path.join(src_path, f"{basename}{suffix}"))
+                for suffix in suffixes
+            ):
                 matching_basenames.append(basename)
 
     matching_basenames.sort()
-    
+
     print("Directories with all three suffixes:", matching_basenames)
 
     # create directory for compilation output
     build_dir = "build"
     if not os.path.exists(build_dir):
         os.makedirs(build_dir)
-        
+
     if not os.path.exists("results"):
         os.makedirs("results")
 
@@ -189,68 +238,92 @@ def main():
     failed_benchmarks = []
     successfull_benchmarks = []
     timeout_benchmarks = []
-    #remove all benchmarks already profiled from benchmark list
+    # remove all benchmarks already profiled from benchmark list
     # benchmarks are already profiled if a .csv exists in results with the name
-    matching_basenames = [name for name in matching_basenames if not os.path.isfile(os.path.join(results_path, f"{name}.csv"))]
+    matching_basenames = [
+        name
+        for name in matching_basenames
+        if not os.path.isfile(os.path.join(results_path, f"{name}.csv"))
+    ]
 
-    
-    print("Removed all benchmarks that already have results in results directory, the following benchmarks will be profiled:") 
+    print(
+        "Removed all benchmarks that already have results in results directory, \
+            the following benchmarks will be profiled:"
+    )
     print(matching_basenames)
     # compile for each suffix with proper flags
     for name in matching_basenames:
-        run_scale_factor = 1
         error_dir = os.path.join(results_path, name)
         os.makedirs(error_dir, exist_ok=True)
-        
-       
+
         os.environ["ARCH"] = args.arch
-        
+
         os.chdir("HeCBench/src")
 
-        # for openmp: go into subdir and compile with appropriate flags 
+        # for openmp: go into subdir and compile with appropriate flags
         os.chdir(name + "-omp")
-        
+
         # some benchmarks do not have a Makefile and have to be skipped
         if not os.path.isfile("Makefile"):
-            print("No Makefile found for OpenMP implementation, continuing with next benchmark")
+            print(
+                "No Makefile found for OpenMP implementation, continuing with next benchmark"
+            )
             os.chdir("../../../")
             continue
-        
+
         # if Makefile exists make variables consistent
-        with open("Makefile", "r") as file:
+        with open("Makefile", "r", encoding="utf-8") as file:
             content = file.read()
-        
-        # Replace 
-        content = re.sub(r'\bNVCC\b', 'CC', content)
-        content = re.sub(r'\bNVCC_FLAGS\b', 'CFLAGS', content)
+
+        # Replace
+        content = re.sub(r"\bNVCC\b", "CC", content)
+        content = re.sub(r"\bNVCC_FLAGS\b", "CFLAGS", content)
 
         # Write the updated Makefile back
-        with open("Makefile", "w") as file:
+        with open("Makefile", "w", encoding="utf-8") as file:
             file.write(content)
- 
-        include_paths, library_paths, d_paths, o_flag = capture_include_and_library_paths()
-        cflags = " ".join([f"-I{path}" for path in include_paths] + [f"-L{path}" for path in library_paths] + [f"-D{path}" for path in d_paths] + [f"-O{flag}" for flag in o_flag])
+
+        include_paths, library_paths, d_paths, o_flag = (
+            capture_include_and_library_paths()
+        )
+        cflags = " ".join(
+            [f"-I{path}" for path in include_paths]
+            + [f"-L{path}" for path in library_paths]
+            + [f"-D{path}" for path in d_paths]
+            + [f"-O{flag}" for flag in o_flag]
+        )
         command = ["make"]
         command.append("CC=" + args.omp_compiler)
         command.append("CFLAGS=" + args.omp_flags + " " + cflags)
-        
+
         command.append("program=omp OPTIMIZE=yes")
-        subprocess.run(["make", "clean"],stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-        
+        subprocess.run(
+            ["make", "clean"], stdout=subprocess.PIPE, stderr=subprocess.PIPE, check=True
+        )
+
         # run make command and store logs
         error_file_omp = os.path.join(error_dir, "omp.log")
-        with open(error_file_omp, "w") as err_file:
-            err_omp = subprocess.run(command, check=False, stdout=err_file, stderr=err_file)
-        
-        run_commands_omp=get_make_commands("omp")
-        
+        with open(error_file_omp, "w", encoding="utf-8") as err_file:
+            err_omp = subprocess.run(
+                command, check=False, stdout=err_file, stderr=err_file
+            )
+
+        run_commands_omp = get_make_commands("omp")
+
         os.chdir("../")
 
         # sycl compilation and get run commands
         os.chdir(name + "-sycl")
-        include_paths, library_paths, d_paths, o_flag = capture_include_and_library_paths()
-        
-        cflags = " ".join([f"-I{path}" for path in include_paths] + [f"-L{path}" for path in library_paths] + [f"-D{path}" for path in d_paths] + [f"-O{flag}" for flag in o_flag])
+        include_paths, library_paths, d_paths, o_flag = (
+            capture_include_and_library_paths()
+        )
+
+        cflags = " ".join(
+            [f"-I{path}" for path in include_paths]
+            + [f"-L{path}" for path in library_paths]
+            + [f"-D{path}" for path in d_paths]
+            + [f"-O{flag}" for flag in o_flag]
+        )
         command = ["make"]
         if args.sycl_compiler is not None:
             command.append("CC=" + args.sycl_compiler)
@@ -258,63 +331,88 @@ def main():
             command.append("CFLAGS=" + args.sycl_flags + " " + cflags)
         if args.gpu == "nvidia":
             command.append("CUDA=yes")
-        else: 
+        else:
             command.append("HIP=yes")
         command.append("program=sycl OPTIMIZE=yes")
-        subprocess.run(["make", "clean"],stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        subprocess.run(
+            ["make", "clean"], stdout=subprocess.PIPE, stderr=subprocess.PIPE, check=True
+        )
 
-         # run make command and store logs
+        # run make command and store logs
         error_file_sycl = os.path.join(error_dir, "sycl.log")
-        with open(error_file_sycl, "w") as err_file:
-            err_sycl = subprocess.run(command, check=False, stdout=err_file, stderr=err_file)
-        
-        run_commands_sycl=get_make_commands("sycl")
+        with open(error_file_sycl, "w", encoding="utf-8") as err_file:
+            err_sycl = subprocess.run(
+                command, check=False, stdout=err_file, stderr=err_file
+            )
+
+        run_commands_sycl = get_make_commands("sycl")
 
         os.chdir("../")
-        
-        
+
         # cuda/hip compilation and get run commands
         run_commands_low_level = None
         low_level_name = ""
         if args.gpu == "amd":
             low_level_name = "hip"
             os.chdir(name + "-hip")
-            include_paths, library_paths, d_paths, o_flag = capture_include_and_library_paths()
-            cflags = " ".join([f"-I{path}" for path in include_paths] + [f"-L{path}" for path in library_paths] + [f"-D{path}" for path in d_paths] + [f"-O{flag}" for flag in o_flag])
+            include_paths, library_paths, d_paths, o_flag = (
+                capture_include_and_library_paths()
+            )
+            cflags = " ".join(
+                [f"-I{path}" for path in include_paths]
+                + [f"-L{path}" for path in library_paths]
+                + [f"-D{path}" for path in d_paths]
+                + [f"-O{flag}" for flag in o_flag]
+            )
             command = ["make"]
             if args.hip_compiler is not None:
                 command.append("CC=" + args.hip_compiler)
             if args.hip_flags is not None:
                 command.append("CFLAGS=" + args.hip_flags + " " + cflags)
             command.append("program=hip")
-            subprocess.run(["make", "clean"],stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+            subprocess.run(
+                ["make", "clean"], stdout=subprocess.PIPE, stderr=subprocess.PIPE, check=True
+            )
             # run make command and store logs
             error_file_low_level = os.path.join(error_dir, "hip.log")
-            with open(error_file_low_level, "w") as err_file:
-                err_low_level = subprocess.run(command, check=False, stdout=err_file, stderr=err_file)
+            with open(error_file_low_level, "w", encoding="utf-8") as err_file:
+                err_low_level = subprocess.run(
+                    command, check=False, stdout=err_file, stderr=err_file
+                )
 
-            run_commands_low_level=get_make_commands("hip")
+            run_commands_low_level = get_make_commands("hip")
 
         else:
             low_level_name = "cuda"
             os.chdir(name + "-cuda")
-            include_paths, library_paths, d_paths, o_flag = capture_include_and_library_paths()
-            cflags = " ".join([f"-I{path}" for path in include_paths] + [f"-L{path}" for path in library_paths] + [f"-D{path}" for path in d_paths] + [f"-O{flag}" for flag in o_flag])
+            include_paths, library_paths, d_paths, o_flag = (
+                capture_include_and_library_paths()
+            )
+            cflags = " ".join(
+                [f"-I{path}" for path in include_paths]
+                + [f"-L{path}" for path in library_paths]
+                + [f"-D{path}" for path in d_paths]
+                + [f"-O{flag}" for flag in o_flag]
+            )
             command = ["make"]
             if args.cuda_compiler is not None:
                 command.append("CC=" + args.cuda_compiler)
             if args.cuda_flags is not None:
                 command.append("CFLAGS=" + args.cuda_flags + " " + cflags)
             command.append("program=cuda")
-            command.append("ARCH="+ args.arch)
-            subprocess.run(["make", "clean"],stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+            command.append("ARCH=" + args.arch)
+            subprocess.run(
+                ["make", "clean"], stdout=subprocess.PIPE, stderr=subprocess.PIPE, check=True
+            )
             # run make command and store logs
             error_file_low_level = os.path.join(error_dir, "cuda.log")
-            with open(error_file_low_level, "w") as err_file:
-                err_low_level = subprocess.run(command, check=False, stdout=err_file, stderr=err_file)
+            with open(error_file_low_level, "w", encoding="utf-8") as err_file:
+                err_low_level = subprocess.run(
+                    command, check=False, stdout=err_file, stderr=err_file
+                )
 
-            run_commands_low_level=get_make_commands("cuda")
-        
+            run_commands_low_level = get_make_commands("cuda")
+
         os.chdir("../")
         os.chdir("../")
         os.chdir("../")
@@ -327,25 +425,42 @@ def main():
         print(run_commands_omp)
         print(run_commands_sycl)
 
-        if len(run_commands_low_level) != len(run_commands_omp) or len(run_commands_omp) != len(run_commands_sycl):
-            print("Number of commands in make run do not match in " + name + ". Skipping benchmark")
+        if len(run_commands_low_level) != len(run_commands_omp) or len(
+            run_commands_omp
+        ) != len(run_commands_sycl):
+            print(
+                "Number of commands in make run do not match in "
+                + name
+                + ". Skipping benchmark"
+            )
             failed_benchmarks.append(name)
             continue
 
-
-        #profile everything, if multiple run in make run profile each individually
+        # profile everything, if multiple run in make run profile each individually
         if err_low_level.returncode != 0:
-            print("Compilation of cuda/hip for " + name + " failed, continuing with next benchmark")
+            print(
+                "Compilation of cuda/hip for "
+                + name
+                + " failed, continuing with next benchmark"
+            )
             print("For build log check " + error_dir)
             failed_benchmarks.append(name)
             continue
         if err_omp.returncode != 0:
-            print("Complation of omp for " + name + " failed, continuing with next benchmark")
+            print(
+                "Complation of omp for "
+                + name
+                + " failed, continuing with next benchmark"
+            )
             print("For build log check " + error_dir)
             failed_benchmarks.append(name)
             continue
         if err_sycl.returncode != 0:
-            print("Compilation of sycl for " + name + " failed, continuing with next benchmark")
+            print(
+                "Compilation of sycl for "
+                + name
+                + " failed, continuing with next benchmark"
+            )
             print("For build log check " + error_dir)
             failed_benchmarks.append(name)
             continue
@@ -354,30 +469,47 @@ def main():
             retries = 0
             result = None
             while retries < 5:
-                try: 
-                    result = subprocess.Popen(["python", "profiling.py",
-                        "--gpu", args.gpu,
-                        "--accumulate",
-                        "--verbose", "0" ,
-                        "--test_name", name,
-                        "HeCBench/src/" + name + "-omp/" + run_commands_omp[0],
-                        "omp offloading kernel", 
-                        "HeCBench/src/" + name + "-sycl/" + run_commands_sycl[0],
-                        "sycl kernel", 
-                        "HeCBench/src/" + name + "-" + low_level_name + "/" + run_commands_low_level[0], 
-                        low_level_name + "_kernel"], start_new_session=True)
+                try:
+                    result = subprocess.Popen(
+                        [
+                            "python",
+                            "profiling.py",
+                            "--gpu",
+                            args.gpu,
+                            "--accumulate",
+                            "--verbose",
+                            "0",
+                            "--test_name",
+                            name,
+                            "HeCBench/src/" + name + "-omp/" + run_commands_omp[0],
+                            "omp offloading kernel",
+                            "HeCBench/src/" + name + "-sycl/" + run_commands_sycl[0],
+                            "sycl kernel",
+                            "HeCBench/src/"
+                            + name
+                            + "-"
+                            + low_level_name
+                            + "/"
+                            + run_commands_low_level[0],
+                            low_level_name + "_kernel",
+                        ],
+                        start_new_session=True,
+                    )
                     result.wait(timeout=3600)
                     break
 
-                # if a timeout is reached the process has to be killed, otherwise the profiling tool will continue to execute and block resources
+                # if a timeout is reached the process has to be killed,
+                # otherwise the profiling tool will continue to execute and block resources
                 except subprocess.TimeoutExpired:
                     os.killpg(os.getpgid(result.pid), signal.SIGTERM)
                     time.sleep(1)
                     retries += 1
                     run_commands_omp[0] = reduce_parameters(run_commands_omp[0])
                     run_commands_sycl[0] = reduce_parameters(run_commands_sycl[0])
-                    run_commands_low_level[0] = reduce_parameters(run_commands_low_level[0])
-            
+                    run_commands_low_level[0] = reduce_parameters(
+                        run_commands_low_level[0]
+                    )
+
             if retries == 5:
                 print("Benchmark " + name + " timeouted, continuing with next one")
                 timeout_benchmarks.append(name)
@@ -386,36 +518,53 @@ def main():
                 print("Profiling of benchmark " + name + " failed")
                 failed_benchmarks.append(name)
                 continue
- 
 
         else:
-            # if multiple run commands exists profile them individually and store in <benchmarkname>_i.csv 
+            # if multiple run commands exists profile them individually
+            # and store in <benchmarkname>_i.csv
             for i in range(len(run_commands_omp)):
                 retries = 0
                 while retries < 5:
                     try:
-                         result = subprocess.Popen(["python", "profiling.py",
-                            "--gpu", args.gpu,
-                            "--accumulate",
-                            "--verbose", "0" ,
-                            "--test_name", name + "_"+ str(i),
-                            "HeCBench/src/" + name + "-omp/" + run_commands_omp[i],
-                            "omp offloading kernel", 
-                            "HeCBench/src/" + name + "-sycl/" + run_commands_sycl[i],
-                            "sycl kernel", 
-                            "HeCBench/src/" + name + "-" + low_level_name + "/" + run_commands_low_level[i], 
-                            low_level_name + "_kernel"
-                            ], start_new_session=True)
-                         result.wait(timeout=3600)
-                         break
-                                                            
+                        result = subprocess.Popen(
+                            [
+                                "python",
+                                "profiling.py",
+                                "--gpu",
+                                args.gpu,
+                                "--accumulate",
+                                "--verbose",
+                                "0",
+                                "--test_name",
+                                name + "_" + str(i),
+                                "HeCBench/src/" + name + "-omp/" + run_commands_omp[i],
+                                "omp offloading kernel",
+                                "HeCBench/src/"
+                                + name
+                                + "-sycl/"
+                                + run_commands_sycl[i],
+                                "sycl kernel",
+                                "HeCBench/src/"
+                                + name
+                                + "-"
+                                + low_level_name
+                                + "/"
+                                + run_commands_low_level[i],
+                                low_level_name + "_kernel",
+                            ],
+                            start_new_session=True,
+                        )
+                        result.wait(timeout=3600)
+                        break
+
                     except subprocess.TimeoutExpired:
                         os.killpg(os.getpgid(result.pid), signal.SIGTERM)
                         retries += 1
-                        run_commands_omp[0]
                         run_commands_omp[0] = reduce_parameters(run_commands_omp[0])
                         run_commands_sycl[0] = reduce_parameters(run_commands_sycl[0])
-                        run_commands_low_level[0] = reduce_parameters(run_commands_low_level[0])
+                        run_commands_low_level[0] = reduce_parameters(
+                            run_commands_low_level[0]
+                        )
                         print(run_commands_omp[0])
 
                 if retries == 5:
@@ -426,8 +575,7 @@ def main():
                     print("Profiling of benchmark " + name + " failed")
                     failed_benchmarks.append(name)
                     continue
-                   
-    
+
         successfull_benchmarks.append(name)
         print("Successfull benchmarks so far:")
         print(successfull_benchmarks)
@@ -435,7 +583,6 @@ def main():
         print(failed_benchmarks)
         print("Timeouted Benchmarks so far:")
         print(timeout_benchmarks)
-
 
     print("Benchmarking finished")
     print("Build failed for:")
@@ -445,7 +592,5 @@ def main():
     print(timeout_benchmarks)
 
 
-
-if  __name__ == "__main__":
+if __name__ == "__main__":
     main()
-

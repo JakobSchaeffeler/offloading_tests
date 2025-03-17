@@ -28,4 +28,7 @@ On AMD GPUs omniperf is used to profile applications, thus a working omniperf pr
 
 On NVIDIA GPUs ncu and nsys is required. 
 
+# Performance Evaluations on MI100 and V100
+
+The performance metrics collected using this tool on V100 and MI100 GPUs are available at [https://github.com/JakobSchaeffeler/offloading_tests_results](https://github.com/JakobSchaeffeler/offloading_tests_results)
 
